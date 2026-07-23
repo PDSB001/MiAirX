@@ -1,1248 +1,1234 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MiAirX</title>
-    <meta name="color-scheme" content="light dark">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap"
-        rel="stylesheet">
-    <style>
-        :root {
-            color-scheme: light dark;
-            --bg: #07070e;
-            --surface: rgba(15, 15, 30, 0.65);
-            --surface-solid: #10101c;
-            --surface-elevated: rgba(22, 22, 42, 0.8);
-            --border: rgba(255, 255, 255, 0.06);
-            --border-hover: rgba(255, 255, 255, 0.14);
-            --accent: #7c3aed;
-            --accent-soft: #a78bfa;
-            --accent-glow: rgba(124, 58, 237, 0.35);
-            --green: #34d399;
-            --green-soft: #6ee7b7;
-            --green-dim: rgba(52, 211, 153, 0.08);
-            --amber: #fbbf24;
-            --amber-dim: rgba(251, 191, 36, 0.08);
-            --red: #f87171;
-            --red-soft: #fca5a5;
-            --red-dim: rgba(248, 113, 113, 0.08);
-            --text: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --text-muted: #475569;
-            --radius-xl: 20px;
-            --radius-lg: 14px;
-            --radius-md: 10px;
-            --radius-sm: 8px;
-            --blur: 24px;
-            --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-        }
-
-        @media (prefers-color-scheme: light) {
-            :root {
-                --bg: #f3f4f6;
-                --surface: rgba(255, 255, 255, 0.7);
-                --surface-solid: #ffffff;
-                --surface-elevated: rgba(255, 255, 255, 0.9);
-                --border: rgba(0, 0, 0, 0.06);
-                --border-hover: rgba(0, 0, 0, 0.12);
-                --accent: #7c3aed;
-                --accent-soft: #8b5cf6;
-                --accent-glow: rgba(124, 58, 237, 0.15);
-                --text: #0f172a;
-                --text-secondary: #475569;
-                --text-muted: #94a3b8;
-                --card-shadow: 0 2px 16px rgba(0, 0, 0, 0.05);
-            }
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        html { font-size: 16px; }
-
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            line-height: 1.6;
-            -webkit-font-smoothing: antialiased;
-            overflow-x: hidden;
-            position: relative;
-            letter-spacing: -0.011em;
-        }
-
-        .bg-blobs {
-            position: fixed;
-            inset: 0;
-            z-index: -1;
-            overflow: hidden;
-            pointer-events: none;
-            filter: blur(120px);
-            opacity: 0.7;
-        }
-
-        .blob {
-            position: absolute;
-            border-radius: 50%;
-            animation: blob-float 28s infinite alternate ease-in-out;
-        }
-
-        .blob-1 {
-            width: 60vw;
-            height: 60vw;
-            max-width: 720px;
-            max-height: 720px;
-            top: -15%;
-            left: -15%;
-            background: radial-gradient(circle at 40% 40%, var(--accent-glow), transparent 75%);
-            animation-duration: 20s;
-        }
-
-        .blob-2 {
-            width: 55vw;
-            height: 55vw;
-            max-width: 660px;
-            max-height: 660px;
-            bottom: -10%;
-            right: -10%;
-            background: radial-gradient(circle at 60% 60%, rgba(139, 92, 246, 0.25), transparent 75%);
-            animation-duration: 24s;
-            animation-delay: -6s;
-        }
-
-        .blob-3 {
-            width: 40vw;
-            height: 40vw;
-            max-width: 500px;
-            max-height: 500px;
-            top: 30%;
-            left: 35%;
-            background: radial-gradient(circle at 50% 50%, rgba(192, 132, 252, 0.2), transparent 70%);
-            animation-duration: 32s;
-            animation-delay: -12s;
-        }
-
-        @keyframes blob-float {
-            0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-            33%  { transform: translate(25%, 15%) scale(1.2) rotate(100deg); }
-            66%  { transform: translate(-15%, 35%) scale(0.8) rotate(210deg); }
-            100% { transform: translate(0, 0) scale(1) rotate(360deg); }
-        }
-
-        .container {
-            max-width: 1440px;
-            margin: 0 auto;
-            padding: 0 28px 72px;
-        }
-
-        nav {
-            padding: 28px 0 36px;
-            animation: fadeInDown 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .logo {
-            font-family: 'Outfit', sans-serif;
-            font-size: 34px;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-            background: linear-gradient(135deg, #a78bfa 0%, #c084fc 50%, #818cf8 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .tagline {
-            font-size: 13px;
-            color: var(--text-secondary);
-            font-weight: 500;
-            margin-top: 2px;
-            letter-spacing: 0.01em;
-        }
-
-        .main-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 22px;
-            align-items: start;
-            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        @media (max-width: 1080px) { .main-grid { grid-template-columns: 1fr 1fr; } }
-        @media (max-width: 720px)  { .main-grid { grid-template-columns: 1fr; } }
-
-        .card {
-            background: var(--surface);
-            backdrop-filter: blur(var(--blur));
-            -webkit-backdrop-filter: blur(var(--blur));
-            border: 1px solid var(--border);
-            border-radius: var(--radius-xl);
-            padding: 26px;
-            transition: border-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .card:hover {
-            border-color: var(--border-hover);
-            box-shadow: var(--card-shadow);
-        }
-
-        #device-list,
-        #renderers-list {
-            max-height: 680px;
-            overflow-y: auto;
-            padding-right: 4px;
-            scroll-behavior: smooth;
-            scrollbar-gutter: stable;
-        }
-
-        #device-list::-webkit-scrollbar,
-        #renderers-list::-webkit-scrollbar { width: 4px; }
-
-        #device-list::-webkit-scrollbar-thumb,
-        #renderers-list::-webkit-scrollbar-thumb {
-            background: var(--border);
-            border-radius: 10px;
-        }
-
-        .card-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 18px;
-            gap: 12px;
-        }
-
-        .card-title {
-            font-family: 'Outfit', sans-serif;
-            font-size: 17px;
-            font-weight: 700;
-            letter-spacing: -0.01em;
-        }
-
-        .dev-count {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-muted);
-            background: rgba(127, 127, 127, 0.08);
-            padding: 2px 10px;
-            border-radius: 100px;
-        }
-
-        /* Device Item */
-        .device-item {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            padding: 13px 14px;
-            border-radius: var(--radius-md);
-            background: var(--surface-elevated);
-            border: 1px solid var(--border);
-            margin-bottom: 8px;
-            cursor: pointer;
-            user-select: none;
-            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .device-item:last-child { margin-bottom: 0; }
-
-        .device-item:hover {
-            background: var(--surface);
-            border-color: var(--border-hover);
-            transform: translateX(2px);
-        }
-
-        .device-item.selected {
-            border-color: rgba(124, 58, 237, 0.45);
-            background: rgba(124, 58, 237, 0.06);
-            box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.15);
-        }
-
-        .device-icon {
-            width: 42px;
-            height: 42px;
-            border-radius: var(--radius-sm);
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(139, 92, 246, 0.08));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            color: var(--accent-soft);
-        }
-
-        .device-body {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .device-name {
-            font-size: 14px;
-            font-weight: 600;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .device-meta {
-            font-size: 11px;
-            color: var(--text-secondary);
-            margin-top: 3px;
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .device-did {
-            font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
-            font-size: 10.5px;
-            font-weight: 500;
-            color: var(--text-muted);
-            background: rgba(127, 127, 127, 0.08);
-            padding: 2px 7px;
-            border-radius: 5px;
-        }
-
-        .device-check {
-            flex-shrink: 0;
-            width: 20px;
-            height: 20px;
-            border-radius: 6px;
-            border: 2px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .device-item.selected .device-check {
-            background: var(--accent);
-            border-color: var(--accent);
-            box-shadow: 0 0 12px var(--accent-glow);
-        }
-
-        .device-check::after {
-            content: "✓";
-            font-size: 12px;
-            font-weight: 800;
-            color: #fff;
-            opacity: 0;
-            transform: scale(0.5);
-            transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        .device-item.selected .device-check::after {
-            opacity: 1;
-            transform: scale(1);
-        }
-
-        /* Speaker Item */
-        .speaker-item {
-            padding: 16px;
-            border-radius: var(--radius-md);
-            background: var(--surface-elevated);
-            border: 1px solid var(--border);
-            margin-bottom: 10px;
-            transition: border-color 0.25s, box-shadow 0.25s;
-        }
-
-        .speaker-item:last-child { margin-bottom: 0; }
-
-        .speaker-item:hover {
-            border-color: var(--border-hover);
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-        }
-
-        .speaker-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 6px;
-            flex-wrap: wrap;
-        }
-
-        .speaker-name {
-            font-weight: 700;
-            font-size: 14px;
-            letter-spacing: -0.01em;
-        }
-
-        .badge {
-            font-size: 9.5px;
-            font-weight: 700;
-            padding: 3px 7px;
-            border-radius: 5px;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-        }
-
-        .badge-dlna    { background: rgba(124, 58, 237, 0.12); color: #a78bfa; border: 1px solid rgba(124, 58, 237, 0.25); }
-        .badge-airplay { background: rgba(192, 132, 252, 0.1);  color: #c084fc; border: 1px solid rgba(192, 132, 252, 0.25); }
-
-        .speaker-meta {
-            font-size: 11px;
-            color: var(--text-secondary);
-            margin-bottom: 8px;
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        /* Volume */
-        .volume-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 10px 0;
-        }
-
-        .vol-label {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            white-space: nowrap;
-            letter-spacing: 0.02em;
-        }
-
-        .volume-slider {
-            flex: 1;
-            -webkit-appearance: none;
-            appearance: none;
-            height: 6px;
-            border-radius: 3px;
-            background: rgba(127, 127, 127, 0.15);
-            outline: none;
-            cursor: pointer;
-        }
-
-        .volume-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: #fff;
-            border: 2px solid var(--accent);
-            box-shadow: 0 2px 8px var(--accent-glow);
-            cursor: pointer;
-            transition: transform 0.15s;
-        }
-
-        .volume-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
-
-        .volume-slider::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: #fff;
-            border: 2px solid var(--accent);
-            box-shadow: 0 2px 8px var(--accent-glow);
-            cursor: pointer;
-        }
-
-        .volume-value {
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--text);
-            min-width: 32px;
-            text-align: right;
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* Buttons */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 9px 16px;
-            border-radius: var(--radius-sm);
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-            border: 1px solid transparent;
-            gap: 6px;
-            font-family: inherit;
-            letter-spacing: 0.01em;
-            white-space: nowrap;
-        }
-
-        .btn:active { transform: scale(0.97); }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #7c3aed, #6d28d9);
-            color: #fff;
-            box-shadow: 0 2px 12px rgba(124, 58, 237, 0.3);
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            box-shadow: 0 4px 20px rgba(124, 58, 237, 0.45);
-            transform: translateY(-1px);
-        }
-
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.04);
-            color: var(--text);
-            border-color: var(--border);
-        }
-
-        .btn-secondary:hover:not(:disabled) {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: var(--border-hover);
-        }
-
-        .btn-success {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: #fff;
-            box-shadow: 0 2px 12px rgba(16, 185, 129, 0.25);
-        }
-
-        .btn-success:hover:not(:disabled) {
-            box-shadow: 0 4px 18px rgba(16, 185, 129, 0.35);
-            transform: translateY(-1px);
-        }
-
-        .btn:disabled {
-            opacity: 0.45;
-            cursor: not-allowed;
-            filter: grayscale(0.3);
-            transform: none !important;
-        }
-
-        .btn-sm { padding: 7px 13px; font-size: 12px; }
-
-        /* Form */
-        .form-group { margin-bottom: 14px; }
-
-        .form-label {
-            display: block;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin-bottom: 7px;
-            letter-spacing: 0.02em;
-            text-transform: uppercase;
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 10px 13px;
-            background: var(--surface-elevated);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            color: var(--text);
-            font-size: 13px;
-            font-family: inherit;
-            transition: all 0.2s;
-            outline: none;
-        }
-
-        .form-input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-glow);
-        }
-
-        /* Toggle */
-        .toggle-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-
-        .toggle-title {
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .toggle-desc {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-top: 2px;
-        }
-
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 40px;
-            height: 22px;
-            flex-shrink: 0;
-        }
-
-        .switch input { opacity: 0; width: 0; height: 0; }
-
-        .switch .slider {
-            position: absolute;
-            cursor: pointer;
-            inset: 0;
-            background: var(--text-muted);
-            transition: 0.3s;
-            border-radius: 22px;
-        }
-
-        .switch .slider::before {
-            content: "";
-            position: absolute;
-            height: 16px;
-            width: 16px;
-            left: 3px;
-            bottom: 3px;
-            background: #fff;
-            transition: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            border-radius: 50%;
-        }
-
-        .switch input:checked+.slider { background: var(--accent); }
-
-        .switch input:checked+.slider::before { transform: translateX(18px); }
-
-        /* Section */
-        .section {
-            margin-bottom: 20px;
-            background: rgba(127, 127, 127, 0.03);
-            border-radius: var(--radius-md);
-            padding: 14px;
-            border: 1px solid var(--border);
-        }
-
-        .section-title {
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 14px;
-        }
-
-        /* Modal */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .modal-overlay.active { opacity: 1; visibility: visible; }
-
-        .modal {
-            background: var(--surface-solid);
-            width: 100%;
-            max-width: 440px;
-            border-radius: var(--radius-xl);
-            border: 1px solid var(--border);
-            padding: 28px;
-            transform: scale(0.92) translateY(10px);
-            transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
-        }
-
-        .modal-overlay.active .modal { transform: scale(1) translateY(0); }
-
-        .modal-title {
-            font-family: 'Outfit', sans-serif;
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-
-        .modal-desc {
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin-bottom: 18px;
-        }
-
-        .modal-footer {
-            margin-top: 24px;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-
-        /* Tips */
-        .tip {
-            font-size: 12px;
-            font-weight: 500;
-            padding: 10px 13px;
-            border-radius: var(--radius-sm);
-            margin-top: 12px;
-            display: none;
-            letter-spacing: 0.01em;
-        }
-
-        .tip.active { display: block; }
-
-        .tip-success {
-            background: var(--green-dim);
-            color: var(--green-soft);
-            border: 1px solid rgba(52, 211, 153, 0.2);
-        }
-
-        .tip-error {
-            background: var(--red-dim);
-            color: var(--red-soft);
-            border: 1px solid rgba(248, 113, 113, 0.2);
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--text-muted);
-            font-size: 13px;
-        }
-
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-16px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(16px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        ::-webkit-scrollbar { width: 6px; }
-
-        ::-webkit-scrollbar-track { background: transparent; }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--border);
-            border-radius: 10px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
-
-        .footer-link {
-            color: rgba(124, 58, 237, 0.4);
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.2s;
-        }
-
-        .footer-link:hover { color: var(--accent); text-decoration: underline; }
-
-        @media (max-width: 720px) {
-            .container { padding: 0 14px 48px; }
-            .card { padding: 20px; }
-            .card-title { font-size: 16px; }
-            nav { padding: 20px 0 24px; }
-            .logo { font-size: 28px; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiAirX</title>
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+    color-scheme: light dark;
+    --bg: #05050a;
+    --surface: rgba(12,12,24,0.7);
+    --surface-solid: #0e0e1a;
+    --surface-elevated: rgba(18,18,36,0.85);
+    --border: rgba(255,255,255,0.07);
+    --border-hover: rgba(255,255,255,0.16);
+    --accent: #06b6d4;
+    --accent2: #7c3aed;
+    --accent-soft: #22d3ee;
+    --accent-glow: rgba(6,182,212,0.35);
+    --accent-glow2: rgba(124,58,237,0.25);
+    --green: #34d399;
+    --green-soft: #6ee7b7;
+    --green-dim: rgba(52,211,153,0.08);
+    --amber: #fbbf24;
+    --red: #f87171;
+    --red-soft: #fca5a5;
+    --red-dim: rgba(248,113,113,0.08);
+    --text: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #475569;
+    --radius-xl: 20px;
+    --radius-lg: 14px;
+    --radius-md: 10px;
+    --radius-sm: 8px;
+    --blur: 24px;
+    --card-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg: #eef0f6;
+        --surface: rgba(255,255,255,0.75);
+        --surface-solid: #ffffff;
+        --surface-elevated: rgba(255,255,255,0.92);
+        --border: rgba(0,0,0,0.06);
+        --border-hover: rgba(0,0,0,0.13);
+        --accent: #0891b2;
+        --accent2: #7c3aed;
+        --accent-soft: #06b6d4;
+        --accent-glow: rgba(6,182,212,0.12);
+        --accent-glow2: rgba(124,58,237,0.12);
+        --text: #0f172a;
+        --text-secondary: #475569;
+        --text-muted: #94a3b8;
+        --card-shadow: 0 2px 16px rgba(0,0,0,0.05);
+    }
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html { font-size:16px; }
+
+body {
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+    position:relative;
+    letter-spacing:-0.011em;
+}
+
+/* ── animated gradient background ── */
+.bg-blobs {
+    position:fixed;
+    inset:0;
+    z-index:-1;
+    overflow:hidden;
+    pointer-events:none;
+    filter:blur(100px);
+    opacity:0.85;
+}
+.blob {
+    position:absolute;
+    border-radius:50%;
+    will-change:transform;
+}
+.blob-1 {
+    width:70vw; height:70vw;
+    max-width:850px; max-height:850px;
+    top:-20%; left:-20%;
+    background:radial-gradient(circle at 45% 45%, rgba(6,182,212,0.22), transparent 70%);
+    animation:blob-float 22s infinite alternate ease-in-out;
+}
+.blob-2 {
+    width:60vw; height:60vw;
+    max-width:750px; max-height:750px;
+    bottom:-15%; right:-15%;
+    background:radial-gradient(circle at 55% 55%, rgba(124,58,237,0.2), transparent 70%);
+    animation:blob-float 26s infinite alternate ease-in-out;
+    animation-delay:-7s;
+}
+.blob-3 {
+    width:45vw; height:45vw;
+    max-width:560px; max-height:560px;
+    top:25%; left:30%;
+    background:radial-gradient(circle at 50% 50%, rgba(6,182,212,0.12), transparent 65%);
+    animation:blob-float 30s infinite alternate ease-in-out;
+    animation-delay:-14s;
+}
+.blob-4 {
+    width:35vw; height:35vw;
+    max-width:420px; max-height:420px;
+    bottom:15%; left:15%;
+    background:radial-gradient(circle at 50% 50%, rgba(52,211,153,0.1), transparent 65%);
+    animation:blob-float 34s infinite alternate ease-in-out;
+    animation-delay:-21s;
+}
+
+@keyframes blob-float {
+    0%   { transform:translate(0,0) scale(1) rotate(0deg); }
+    33%  { transform:translate(22%,12%) scale(1.18) rotate(90deg); }
+    66%  { transform:translate(-12%,28%) scale(0.82) rotate(190deg); }
+    100% { transform:translate(0,0) scale(1) rotate(360deg); }
+}
+
+/* ── grain overlay for texture ── */
+body::after {
+    content:"";
+    position:fixed;
+    inset:0;
+    z-index:0;
+    pointer-events:none;
+    opacity:0.02;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.container {
+    max-width:1440px;
+    margin:0 auto;
+    padding:0 28px 72px;
+    position:relative;
+    z-index:1;
+}
+
+/* ── nav ── */
+nav {
+    padding:32px 0 36px;
+    animation:nav-in 0.8s cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes nav-in {
+    from { opacity:0; transform:translateY(-20px); }
+    to   { opacity:1; transform:translateY(0); }
+}
+
+.logo {
+    font-family:'Outfit',sans-serif;
+    font-size:36px;
+    font-weight:800;
+    letter-spacing:-0.035em;
+    line-height:1;
+    background:linear-gradient(135deg, #22d3ee 0%, #a78bfa 50%, #818cf8 100%);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    background-clip:text;
+    filter:drop-shadow(0 0 24px rgba(6,182,212,0.2));
+}
+
+.tagline {
+    font-size:13px;
+    color:var(--text-secondary);
+    font-weight:500;
+    margin-top:5px;
+    letter-spacing:0.01em;
+}
+
+/* ── grid ── */
+.main-grid {
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:22px;
+    align-items:start;
+}
+@media (max-width:1080px) { .main-grid { grid-template-columns:1fr 1fr; } }
+@media (max-width:720px)  { .main-grid { grid-template-columns:1fr; } }
+
+/* ── staggered card entrance ── */
+.card {
+    background:var(--surface);
+    backdrop-filter:blur(var(--blur));
+    -webkit-backdrop-filter:blur(var(--blur));
+    border:1px solid var(--border);
+    border-radius:var(--radius-xl);
+    padding:26px;
+    transition:border-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s cubic-bezier(0.16,1,0.3,1);
+    animation:card-in 0.7s cubic-bezier(0.16,1,0.3,1) both;
+}
+.card:nth-child(1) { animation-delay:0.1s; }
+.card:nth-child(2) { animation-delay:0.2s; }
+.card:nth-child(3) { animation-delay:0.3s; }
+
+@keyframes card-in {
+    from { opacity:0; transform:translateY(24px) scale(0.97); }
+    to   { opacity:1; transform:translateY(0) scale(1); }
+}
+
+.card:hover {
+    border-color:var(--border-hover);
+    box-shadow:var(--card-shadow);
+}
+
+#device-list,
+#renderers-list {
+    max-height:680px;
+    overflow-y:auto;
+    padding-right:4px;
+    scroll-behavior:smooth;
+    scrollbar-gutter:stable;
+}
+
+#device-list::-webkit-scrollbar,
+#renderers-list::-webkit-scrollbar { width:4px; }
+#device-list::-webkit-scrollbar-thumb,
+#renderers-list::-webkit-scrollbar-thumb {
+    background:var(--border);
+    border-radius:10px;
+}
+
+.card-header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+    gap:12px;
+}
+
+.card-title {
+    font-family:'Outfit',sans-serif;
+    font-size:17px;
+    font-weight:700;
+    letter-spacing:-0.01em;
+}
+
+.dev-count {
+    font-size:12px;
+    font-weight:600;
+    color:var(--text-muted);
+    background:rgba(127,127,127,0.08);
+    padding:2px 10px;
+    border-radius:100px;
+}
+
+/* ── device item ── */
+.device-item {
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:13px 14px;
+    border-radius:var(--radius-md);
+    background:var(--surface-elevated);
+    border:1px solid var(--border);
+    margin-bottom:8px;
+    cursor:pointer;
+    user-select:none;
+    transition:all 0.25s cubic-bezier(0.16,1,0.3,1);
+    animation:item-in 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+.device-item:last-child { margin-bottom:0; }
+
+@keyframes item-in {
+    from { opacity:0; transform:translateX(-12px); }
+    to   { opacity:1; transform:translateX(0); }
+}
+
+.device-item:hover {
+    background:var(--surface);
+    border-color:var(--border-hover);
+    transform:translateX(3px);
+}
+
+.device-item.selected {
+    border-color:rgba(6,182,212,0.45);
+    background:rgba(6,182,212,0.06);
+    box-shadow:0 0 0 1px rgba(6,182,212,0.15), 0 0 20px rgba(6,182,212,0.08);
+}
+
+.device-icon {
+    width:42px;
+    height:42px;
+    border-radius:var(--radius-sm);
+    background:linear-gradient(135deg, rgba(6,182,212,0.15), rgba(124,58,237,0.1));
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+    color:var(--accent-soft);
+    transition:box-shadow 0.25s;
+}
+.device-item.selected .device-icon {
+    box-shadow:0 0 16px var(--accent-glow);
+}
+
+.device-body { flex:1; min-width:0; }
+.device-name {
+    font-size:14px;
+    font-weight:600;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+.device-meta {
+    font-size:11px;
+    color:var(--text-secondary);
+    margin-top:3px;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+}
+.device-did {
+    font-family:'SF Mono','Cascadia Code','Consolas',monospace;
+    font-size:10.5px;
+    font-weight:500;
+    color:var(--text-muted);
+    background:rgba(127,127,127,0.08);
+    padding:2px 7px;
+    border-radius:5px;
+}
+
+.device-check {
+    flex-shrink:0;
+    width:20px;
+    height:20px;
+    border-radius:6px;
+    border:2px solid var(--border);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transition:all 0.25s cubic-bezier(0.16,1,0.3,1);
+}
+.device-item.selected .device-check {
+    background:var(--accent);
+    border-color:var(--accent);
+    box-shadow:0 0 14px var(--accent-glow);
+}
+.device-check::after {
+    content:"✓";
+    font-size:12px;
+    font-weight:800;
+    color:#fff;
+    opacity:0;
+    transform:scale(0.3) rotate(-15deg);
+    transition:all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+.device-item.selected .device-check::after {
+    opacity:1;
+    transform:scale(1) rotate(0deg);
+}
+
+/* ── speaker item ── */
+.speaker-item {
+    padding:16px;
+    border-radius:var(--radius-md);
+    background:var(--surface-elevated);
+    border:1px solid var(--border);
+    margin-bottom:10px;
+    transition:border-color 0.25s, box-shadow 0.25s, transform 0.25s;
+    animation:item-in 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+.speaker-item:last-child { margin-bottom:0; }
+.speaker-item:hover {
+    border-color:var(--border-hover);
+    box-shadow:0 4px 16px rgba(0,0,0,0.15);
+    transform:translateY(-2px);
+}
+
+.speaker-header {
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:6px;
+    flex-wrap:wrap;
+}
+.speaker-name {
+    font-weight:700;
+    font-size:14px;
+    letter-spacing:-0.01em;
+}
+
+.badge {
+    font-size:9.5px;
+    font-weight:700;
+    padding:3px 7px;
+    border-radius:5px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+}
+.badge-dlna    { background:rgba(6,182,212,0.12); color:#22d3ee; border:1px solid rgba(6,182,212,0.25); }
+.badge-airplay { background:rgba(124,58,237,0.1);  color:#a78bfa; border:1px solid rgba(124,58,237,0.25); }
+
+.speaker-meta {
+    font-size:11px;
+    color:var(--text-secondary);
+    margin-bottom:8px;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+}
+
+/* ── volume ── */
+.volume-row {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin:10px 0;
+}
+.vol-label {
+    font-size:12px;
+    font-weight:600;
+    color:var(--text-secondary);
+    white-space:nowrap;
+    letter-spacing:0.02em;
+}
+
+.volume-slider {
+    flex:1;
+    -webkit-appearance:none;
+    appearance:none;
+    height:6px;
+    border-radius:3px;
+    background:linear-gradient(90deg, var(--accent) var(--vol,50%), rgba(127,127,127,0.15) var(--vol,50%));
+    outline:none;
+    cursor:pointer;
+    transition:background 0.1s;
+}
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance:none;
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:#fff;
+    border:2px solid var(--accent);
+    box-shadow:0 2px 8px var(--accent-glow);
+    cursor:pointer;
+    transition:transform 0.15s, box-shadow 0.15s;
+}
+.volume-slider::-webkit-slider-thumb:hover {
+    transform:scale(1.2);
+    box-shadow:0 0 14px var(--accent-glow);
+}
+.volume-slider::-moz-range-thumb {
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:#fff;
+    border:2px solid var(--accent);
+    box-shadow:0 2px 8px var(--accent-glow);
+    cursor:pointer;
+}
+
+.volume-value {
+    font-size:13px;
+    font-weight:700;
+    color:var(--text);
+    min-width:32px;
+    text-align:right;
+    font-variant-numeric:tabular-nums;
+}
+
+/* ── buttons ── */
+.btn {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:9px 16px;
+    border-radius:var(--radius-sm);
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    transition:all 0.2s cubic-bezier(0.16,1,0.3,1);
+    border:1px solid transparent;
+    gap:6px;
+    font-family:inherit;
+    letter-spacing:0.01em;
+    white-space:nowrap;
+    position:relative;
+    overflow:hidden;
+}
+.btn::before {
+    content:"";
+    position:absolute;
+    inset:0;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+    transform:translateX(-100%);
+    transition:transform 0.5s ease;
+}
+.btn:hover::before { transform:translateX(100%); }
+.btn:active { transform:scale(0.96); }
+
+.btn-primary {
+    background:linear-gradient(135deg, #06b6d4, #0891b2);
+    color:#fff;
+    box-shadow:0 2px 12px rgba(6,182,212,0.3);
+}
+.btn-primary:hover:not(:disabled) {
+    box-shadow:0 4px 20px rgba(6,182,212,0.45), 0 0 24px rgba(6,182,212,0.15);
+    transform:translateY(-1px);
+}
+
+.btn-secondary {
+    background:rgba(255,255,255,0.04);
+    color:var(--text);
+    border-color:var(--border);
+}
+.btn-secondary:hover:not(:disabled) {
+    background:rgba(255,255,255,0.09);
+    border-color:var(--border-hover);
+}
+
+.btn-success {
+    background:linear-gradient(135deg, #10b981, #059669);
+    color:#fff;
+    box-shadow:0 2px 12px rgba(16,185,129,0.25);
+}
+.btn-success:hover:not(:disabled) {
+    box-shadow:0 4px 18px rgba(16,185,129,0.35), 0 0 20px rgba(16,185,129,0.12);
+    transform:translateY(-1px);
+}
+
+.btn:disabled {
+    opacity:0.4;
+    cursor:not-allowed;
+    filter:grayscale(0.3);
+    transform:none !important;
+    pointer-events:none;
+}
+.btn-sm { padding:7px 13px; font-size:12px; }
+
+/* ── form ── */
+.form-group { margin-bottom:14px; }
+.form-label {
+    display:block;
+    font-size:11px;
+    font-weight:700;
+    color:var(--text-secondary);
+    margin-bottom:7px;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+}
+.form-input {
+    width:100%;
+    padding:10px 13px;
+    background:var(--surface-elevated);
+    border:1px solid var(--border);
+    border-radius:var(--radius-sm);
+    color:var(--text);
+    font-size:13px;
+    font-family:inherit;
+    transition:all 0.2s;
+    outline:none;
+}
+.form-input:focus {
+    border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-glow), 0 0 12px rgba(6,182,212,0.1);
+}
+
+/* ── toggle ── */
+.toggle-row {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:12px;
+}
+.toggle-title { font-size:13px; font-weight:600; }
+.toggle-desc { font-size:11px; color:var(--text-muted); margin-top:2px; }
+
+.switch {
+    position:relative;
+    display:inline-block;
+    width:44px;
+    height:24px;
+    flex-shrink:0;
+}
+.switch input { opacity:0; width:0; height:0; }
+.switch .slider {
+    position:absolute;
+    cursor:pointer;
+    inset:0;
+    background:var(--text-muted);
+    transition:0.35s;
+    border-radius:24px;
+}
+.switch .slider::before {
+    content:"";
+    position:absolute;
+    height:18px;
+    width:18px;
+    left:3px;
+    bottom:3px;
+    background:#fff;
+    transition:0.35s cubic-bezier(0.34,1.56,0.64,1);
+    border-radius:50%;
+    box-shadow:0 1px 4px rgba(0,0,0,0.25);
+}
+.switch input:checked+.slider { background:var(--accent); box-shadow:0 0 12px var(--accent-glow); }
+.switch input:checked+.slider::before { transform:translateX(20px); }
+
+/* ── section ── */
+.section {
+    margin-bottom:20px;
+    background:rgba(127,127,127,0.03);
+    border-radius:var(--radius-md);
+    padding:14px;
+    border:1px solid var(--border);
+}
+.section-title {
+    font-size:11px;
+    font-weight:700;
+    color:var(--text-muted);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    margin-bottom:14px;
+}
+
+/* ── modal ── */
+.modal-overlay {
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.7);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:1000;
+    opacity:0;
+    visibility:hidden;
+    transition:all 0.3s ease;
+}
+.modal-overlay.active { opacity:1; visibility:visible; }
+
+.modal {
+    background:var(--surface-solid);
+    width:100%;
+    max-width:440px;
+    border-radius:var(--radius-xl);
+    border:1px solid var(--border);
+    padding:28px;
+    transform:scale(0.9) translateY(14px);
+    transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    box-shadow:0 25px 60px rgba(0,0,0,0.5), 0 0 40px rgba(6,182,212,0.08);
+}
+.modal-overlay.active .modal { transform:scale(1) translateY(0); }
+
+.modal-title {
+    font-family:'Outfit',sans-serif;
+    font-size:20px;
+    font-weight:700;
+    margin-bottom:6px;
+}
+.modal-desc {
+    font-size:13px;
+    color:var(--text-secondary);
+    margin-bottom:18px;
+}
+.modal-footer {
+    margin-top:24px;
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
+}
+
+/* ── tips ── */
+.tip {
+    font-size:12px;
+    font-weight:500;
+    padding:10px 13px;
+    border-radius:var(--radius-sm);
+    margin-top:12px;
+    display:none;
+    letter-spacing:0.01em;
+    animation:tip-in 0.3s ease;
+}
+@keyframes tip-in {
+    from { opacity:0; transform:translateY(4px); }
+    to   { opacity:1; transform:translateY(0); }
+}
+.tip.active { display:block; }
+.tip-success { background:var(--green-dim); color:var(--green-soft); border:1px solid rgba(52,211,153,0.2); }
+.tip-error { background:var(--red-dim); color:var(--red-soft); border:1px solid rgba(248,113,113,0.2); }
+
+.empty-state {
+    text-align:center;
+    padding:40px 20px;
+    color:var(--text-muted);
+    font-size:13px;
+    animation:tip-in 0.5s ease;
+}
+
+/* ── scrollbar ── */
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb {
+    background:var(--border);
+    border-radius:10px;
+}
+::-webkit-scrollbar-thumb:hover { background:var(--text-muted); }
+
+.footer-link {
+    color:rgba(6,182,212,0.4);
+    text-decoration:none;
+    font-weight:500;
+    transition:color 0.2s;
+}
+.footer-link:hover { color:var(--accent); text-decoration:underline; }
+
+@media (max-width:720px) {
+    .container { padding:0 14px 48px; }
+    .card { padding:20px; }
+    .card-title { font-size:16px; }
+    nav { padding:20px 0 24px; }
+    .logo { font-size:28px; }
+}
+</style>
 </head>
-
 <body>
-    <div class="bg-blobs">
-        <div class="blob blob-1"></div>
-        <div class="blob blob-2"></div>
-        <div class="blob blob-3"></div>
-    </div>
-    <div class="container">
-        <nav>
-            <div style="display:flex;align-items:center;justify-content:space-between;">
-                <div>
-                    <div class="logo">MiAirX</div>
-                    <div class="tagline">为小米 AI 音箱添加 DLNA / AirPlay 投送支持</div>
-                </div>
-                <button class="btn btn-secondary btn-sm" onclick="openLoginModal()">🔑 管理账号</button>
-            </div>
-        </nav>
 
-        <div class="main-grid">
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">📡 设备列表</span>
-                    <span class="dev-count" id="dev-count"></span>
-                </div>
-                <div id="device-list">
-                    <div class="empty-state">正在加载设备列表...</div>
-                </div>
-                <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
-                    <button class="btn btn-primary btn-sm" id="btn-apply-devices" disabled
-                        onclick="applyDevices()">应用选择</button>
-                </div>
-                <div class="tip" id="tip-devices"></div>
-            </div>
+<div class="bg-blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+    <div class="blob blob-4"></div>
+</div>
 
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">🔊 渲染器媒体控制</span>
-                    <button class="btn btn-secondary btn-sm" onclick="loadSpeakers()">🔄 刷新</button>
-                </div>
-                <div id="renderers-list">
-                    <div class="empty-state">暂无媒体设备</div>
-                </div>
+<div class="container">
+    <nav>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <div class="logo">MiAirX</div>
+                <div class="tagline">为小米 AI 音箱添加 DLNA / AirPlay 投送支持</div>
             </div>
+            <button class="btn btn-secondary btn-sm" onclick="openLoginModal()">🔑 管理账号</button>
+        </div>
+    </nav>
 
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">⚙️ 配置选项</span>
-                </div>
-                <div class="section">
-                    <span class="section-title">账号与网络</span>
-                    <div class="form-group">
-                        <label class="form-label">小米账号</label>
-                        <input type="text" class="form-input" id="account" placeholder="小米账号">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">密码</label>
-                        <input type="password" class="form-input" id="password" placeholder="留空则不修改">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">主机名 / IP</label>
-                        <input type="text" class="form-input" id="hostname" placeholder="自动检测">
-                    </div>
-                    <div style="display:flex; gap:12px;">
-                        <div class="form-group" style="flex:1;">
-                            <label class="form-label">DLNA 端口</label>
-                            <input type="number" class="form-input" id="dlna_port" value="8200">
-                        </div>
-                        <div class="form-group" style="flex:1;">
-                            <label class="form-label">Web 端口</label>
-                            <input type="number" class="form-input" id="web_port" value="8300">
-                        </div>
-                    </div>
-                </div>
-                <div class="section">
-                    <span class="section-title">实验性配置</span>
-                    <div class="toggle-row">
-                        <div><div class="toggle-title">设置 URI 时自动播放</div></div>
-                        <label class="switch"><input type="checkbox" id="auto_play_on_set_uri"><span class="slider"></span></label>
-                    </div>
-                    <div class="toggle-row">
-                        <div>
-                            <div class="toggle-title">打断后自动恢复</div>
-                            <div class="toggle-desc">被语音唤醒等打断后自动恢复播放</div>
-                        </div>
-                        <label class="switch"><input type="checkbox" id="auto_resume_on_interrupt"><span class="slider"></span></label>
-                    </div>
-                    <div class="toggle-row">
-                        <div><div class="toggle-title">启用媒体代理</div></div>
-                        <label class="switch"><input type="checkbox" id="proxy_enabled"><span class="slider"></span></label>
-                    </div>
-                    <div class="toggle-row">
-                        <div><div class="toggle-title">启用语音控制</div></div>
-                        <label class="switch"><input type="checkbox" id="enable_voice_control"><span class="slider"></span></label>
-                    </div>
-                    <div class="toggle-row">
-                        <div><div class="toggle-title">跟随设备音量</div></div>
-                        <label class="switch"><input type="checkbox" id="follow_device_volume"><span class="slider"></span></label>
-                    </div>
-                </div>
-                <div style="display: flex; justify-content: flex-end;">
-                    <button class="btn btn-primary" id="btn-save-config" onclick="saveConfig()">保存配置</button>
-                </div>
-                <div class="tip" id="tip-config"></div>
+    <div class="main-grid">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">📡 设备列表</span>
+                <span class="dev-count" id="dev-count"></span>
+            </div>
+            <div id="device-list">
+                <div class="empty-state">正在加载设备列表...</div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+                <button class="btn btn-primary btn-sm" id="btn-apply-devices" disabled onclick="applyDevices()">应用选择</button>
+            </div>
+            <div class="tip" id="tip-devices"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">🔊 渲染器媒体控制</span>
+                <button class="btn btn-secondary btn-sm" onclick="loadSpeakers()">🔄 刷新</button>
+            </div>
+            <div id="renderers-list">
+                <div class="empty-state">暂无媒体设备</div>
             </div>
         </div>
 
-        <div style="text-align: center; margin-top: 40px; color: var(--text-muted); font-size: 12px;">
-            <a href="https://github.com/" class="footer-link" target="_blank">MiAirX</a>
-            基于 MiAir 现代化重构
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">⚙️ 配置选项</span>
+            </div>
+            <div class="section">
+                <span class="section-title">账号与网络</span>
+                <div class="form-group">
+                    <label class="form-label">小米账号</label>
+                    <input type="text" class="form-input" id="account" placeholder="小米账号">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">密码</label>
+                    <input type="password" class="form-input" id="password" placeholder="留空则不修改">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">主机名 / IP</label>
+                    <input type="text" class="form-input" id="hostname" placeholder="自动检测">
+                </div>
+                <div style="display:flex;gap:12px;">
+                    <div class="form-group" style="flex:1;">
+                        <label class="form-label">DLNA 端口</label>
+                        <input type="number" class="form-input" id="dlna_port" value="8200">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label class="form-label">Web 端口</label>
+                        <input type="number" class="form-input" id="web_port" value="8300">
+                    </div>
+                </div>
+            </div>
+            <div class="section">
+                <span class="section-title">实验性配置</span>
+                <div class="toggle-row">
+                    <div><div class="toggle-title">设置 URI 时自动播放</div></div>
+                    <label class="switch"><input type="checkbox" id="auto_play_on_set_uri"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div>
+                        <div class="toggle-title">打断后自动恢复</div>
+                        <div class="toggle-desc">被语音唤醒等打断后自动恢复播放</div>
+                    </div>
+                    <label class="switch"><input type="checkbox" id="auto_resume_on_interrupt"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div><div class="toggle-title">启用媒体代理</div></div>
+                    <label class="switch"><input type="checkbox" id="proxy_enabled"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div><div class="toggle-title">启用语音控制</div></div>
+                    <label class="switch"><input type="checkbox" id="enable_voice_control"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div><div class="toggle-title">跟随设备音量</div></div>
+                    <label class="switch"><input type="checkbox" id="follow_device_volume"><span class="slider"></span></label>
+                </div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;">
+                <button class="btn btn-primary" id="btn-save-config" onclick="saveConfig()">保存配置</button>
+            </div>
+            <div class="tip" id="tip-config"></div>
         </div>
     </div>
 
-    <div class="modal-overlay" id="modal-play">
-        <div class="modal">
-            <div class="modal-title">投送到 <span id="modal-speaker-name"></span></div>
-            <div class="modal-desc">输入音频媒体 URL，设备将开始播放。</div>
-            <div class="form-group">
-                <label class="form-label">音频 URL</label>
-                <input type="url" class="form-input" id="play-url" placeholder="https://example.com/music.mp3">
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closePlayModal()">取消</button>
-                <button class="btn btn-primary" id="btn-play-confirm" onclick="confirmPlay()">▶ 播放</button>
-            </div>
+    <div style="text-align:center;margin-top:40px;color:var(--text-muted);font-size:12px;">
+        <a href="https://github.com/PDSB001/MiAirX" class="footer-link" target="_blank">MiAirX</a>
+        基于 MiAir 现代化重构
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal-play">
+    <div class="modal">
+        <div class="modal-title">投送到 <span id="modal-speaker-name"></span></div>
+        <div class="modal-desc">输入音频媒体 URL，设备将开始播放。</div>
+        <div class="form-group">
+            <label class="form-label">音频 URL</label>
+            <input type="url" class="form-input" id="play-url" placeholder="https://example.com/music.mp3">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closePlayModal()">取消</button>
+            <button class="btn btn-primary" id="btn-play-confirm" onclick="confirmPlay()">▶ 播放</button>
         </div>
     </div>
+</div>
 
-    <!-- Login Modal -->
-    <div class="modal-overlay" id="modal-login">
-        <div class="modal">
-            <div class="modal-title">🔑 小米账号登录</div>
-            <div class="modal-desc">输入小米账号页面的 Cookie 令牌以登录设备。</div>
-            <div class="form-group">
-                <label class="form-label">userId</label>
-                <input type="text" class="form-input" id="login-userid" placeholder="从浏览器 Cookie 获取">
-            </div>
-            <div class="form-group">
-                <label class="form-label">passToken</label>
-                <input type="text" class="form-input" id="login-passtoken" placeholder="从浏览器 Cookie 获取">
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeLoginModal()">取消</button>
-                <button class="btn btn-primary" id="btn-login-confirm" onclick="loginXiaomi()">登录</button>
-            </div>
+<div class="modal-overlay" id="modal-login">
+    <div class="modal">
+        <div class="modal-title">🔑 小米账号登录</div>
+        <div class="modal-desc">输入小米账号页面的 Cookie 令牌以登录设备。</div>
+        <div class="form-group">
+            <label class="form-label">userId</label>
+            <input type="text" class="form-input" id="login-userid" placeholder="从浏览器 Cookie 获取">
+        </div>
+        <div class="form-group">
+            <label class="form-label">passToken</label>
+            <input type="text" class="form-input" id="login-passtoken" placeholder="从浏览器 Cookie 获取">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeLoginModal()">取消</button>
+            <button class="btn btn-primary" id="btn-login-confirm" onclick="loginXiaomi()">登录</button>
         </div>
     </div>
+</div>
 
-    <script>
-        const POLL_DEVICES_MS = 30000;
-        const POLL_SPEAKERS_MS = 15000;
+<script>
+const POLL_DEVICES_MS = 30000;
+const POLL_SPEAKERS_MS = 15000;
 
-        let config = {};
-        let selectedDids = new Set();
-        let speakerEls = {};
-        let devicesInitDone = false;
+let config = {};
+let selectedDids = new Set();
+let speakerEls = {};
+let devicesInitDone = false;
 
-        // ========== Helpers ==========
-        async function api(path, opts = {}) {
-            const res = await fetch(path, {
-                headers: { "Content-Type": "application/json" },
-                ...opts,
+// ========== Helpers ==========
+async function api(path, opts = {}) {
+    const res = await fetch(path, {
+        headers: { "Content-Type": "application/json" },
+        ...opts,
+    });
+    let data = null;
+    try { data = await res.json(); } catch (_) { /* 非 JSON */ }
+    if (!res.ok) throw new Error((data && data.error) ? data.error : `HTTP ${res.status}`);
+    return data;
+}
+
+function showTip(el, msg, type, duration = 5000) {
+    el.textContent = msg;
+    el.className = `tip active tip-${type}`;
+    if (duration) setTimeout(() => el.classList.remove("active"), duration);
+}
+
+function escapeHtml(s) {
+    return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function deviceIcon() {
+    return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="6" y="2" width="12" height="20" rx="3"></rect>
+        <circle cx="12" cy="16" r="2"></circle><path d="M12 8v.01"></path></svg>`;
+}
+
+// ========== Config ==========
+async function loadConfig() {
+    try {
+        config = await api("/api/config") || {};
+        document.getElementById("account").value = config.account || "";
+        document.getElementById("password").value = "";
+        document.getElementById("hostname").value = config.hostname || "";
+        document.getElementById("dlna_port").value = config.dlna_port || 8200;
+        document.getElementById("web_port").value = config.web_port || 8300;
+        document.getElementById("auto_play_on_set_uri").checked = !!config.auto_play_on_set_uri;
+        document.getElementById("auto_resume_on_interrupt").checked = !!config.auto_resume_on_interrupt;
+        document.getElementById("proxy_enabled").checked = !!config.proxy_enabled;
+        document.getElementById("enable_voice_control").checked = !!config.enable_voice_control;
+        document.getElementById("follow_device_volume").checked = !!config.follow_device_volume;
+    } catch (e) { console.warn("加载配置失败：", e.message); }
+}
+
+async function saveConfig() {
+    const btn = document.getElementById("btn-save-config");
+    const tip = document.getElementById("tip-config");
+    btn.disabled = true;
+    showTip(tip, "正在保存...", "success", 0);
+    try {
+        const res = await api("/api/config", {
+            method: "POST",
+            body: JSON.stringify({
+                account: document.getElementById("account").value,
+                password: document.getElementById("password").value,
+                hostname: document.getElementById("hostname").value,
+                dlna_port: parseInt(document.getElementById("dlna_port").value, 10),
+                web_port: parseInt(document.getElementById("web_port").value, 10),
+                auto_play_on_set_uri: document.getElementById("auto_play_on_set_uri").checked,
+                auto_resume_on_interrupt: document.getElementById("auto_resume_on_interrupt").checked,
+                proxy_enabled: document.getElementById("proxy_enabled").checked,
+                enable_voice_control: document.getElementById("enable_voice_control").checked,
+                follow_device_volume: document.getElementById("follow_device_volume").checked,
+            }),
+        });
+        if (res && res.success === false) throw new Error(res.error || "保存失败");
+        showTip(tip, "✅ 已保存，应用重启中...", "success");
+        setTimeout(() => location.reload(), 3000);
+    } catch (e) {
+        showTip(tip, "❌ " + e.message, "error");
+    } finally { btn.disabled = false; }
+}
+
+// ========== Device List ==========
+async function loadDevices() {
+    try {
+        const devices = await api("/api/devices") || [];
+        renderDevices(devices);
+    } catch (e) {
+        document.getElementById("device-list").innerHTML = `<div class="empty-state">加载失败：${escapeHtml(e.message)}</div>`;
+        document.getElementById("dev-count").textContent = "";
+    }
+}
+
+function renderDevices(devices) {
+    const container = document.getElementById("device-list");
+    const countEl = document.getElementById("dev-count");
+    if (!devicesInitDone && config.mi_did) {
+        config.mi_did.split(",").map(s => s.trim()).filter(Boolean).forEach(d => selectedDids.add(d));
+        devicesInitDone = true;
+    }
+    if (!devices.length) {
+        container.innerHTML = '<div class="empty-state">未发现设备。检查账号配置是否正确。</div>';
+        countEl.textContent = "";
+        document.getElementById("btn-apply-devices").disabled = true;
+        return;
+    }
+    countEl.textContent = `${devices.length} 个设备`;
+    container.innerHTML = devices.map(dev => {
+        const did = dev.miotDID || "";
+        const isSel = selectedDids.has(did);
+        return `<div class="device-item ${isSel ? "selected" : ""}" onclick="toggleDevice(this, '${escapeHtml(did)}')">
+            <div class="device-icon">${deviceIcon()}</div>
+            <div class="device-body">
+                <div class="device-name">${escapeHtml(dev.name || "未命名设备")}</div>
+                <div class="device-meta">
+                    <span>${escapeHtml(dev.hardware || "")}</span>
+                    <span class="device-did">DID: ${escapeHtml(did)}</span>
+                </div>
+            </div>
+            <div class="device-check"></div>
+        </div>`;
+    }).join("");
+    if (selectedDids.size > 0) countEl.textContent += `（已选 ${selectedDids.size}）`;
+    document.getElementById("btn-apply-devices").disabled = false;
+}
+
+function toggleDevice(el, did) {
+    if (!did) return;
+    const nowSel = !el.classList.contains("selected");
+    el.classList.toggle("selected", nowSel);
+    if (nowSel) selectedDids.add(did); else selectedDids.delete(did);
+    const countEl = document.getElementById("dev-count");
+    const base = (countEl.textContent || "").replace(/（已选 \d+）/, "");
+    countEl.textContent = selectedDids.size > 0 ? `${base}（已选 ${selectedDids.size}）` : base;
+}
+
+async function applyDevices() {
+    const btn = document.getElementById("btn-apply-devices");
+    const tip = document.getElementById("tip-devices");
+    const mi_did = Array.from(selectedDids).filter(Boolean).join(",");
+    if (!mi_did) { showTip(tip, "⚠️ 请至少选择一个设备", "error"); return; }
+    btn.disabled = true;
+    showTip(tip, "正在应用...", "success", 0);
+    try {
+        await api("/api/config", { method: "POST", body: JSON.stringify({ mi_did }) });
+        showTip(tip, "✅ 已应用设备选择，服务重启中...", "success");
+        setTimeout(() => location.reload(), 3000);
+    } catch (e) {
+        showTip(tip, "❌ " + e.message, "error");
+        btn.disabled = false;
+    }
+}
+
+// ========== Speakers / Renderers ==========
+async function loadSpeakers() {
+    try {
+        const speakers = await api("/api/speakers") || [];
+        renderSpeakers(speakers);
+    } catch (e) {
+        document.getElementById("renderers-list").innerHTML = `<div class="empty-state">加载失败：${escapeHtml(e.message)}</div>`;
+    }
+}
+
+function renderSpeakers(speakers) {
+    const container = document.getElementById("renderers-list");
+    Object.keys(speakerEls).forEach(did => {
+        if (!speakers.find(s => s.did === did)) {
+            speakerEls[did].card.remove();
+            delete speakerEls[did];
+        }
+    });
+    if (!speakers.length) {
+        container.innerHTML = '<div class="empty-state">暂无媒体设备。在左侧选择设备并点击应用。</div>';
+        return;
+    }
+    const place = container.querySelector(".empty-state");
+    if (place) place.remove();
+    speakers.forEach(s => {
+        if (speakerEls[s.did]) return;
+        speakerEls[s.did] = buildSpeakerCard(s);
+        container.appendChild(speakerEls[s.did].card);
+    });
+}
+
+function buildSpeakerCard(s) {
+    const card = document.createElement("div");
+    card.className = "speaker-item";
+    card.dataset.did = s.did;
+
+    card.innerHTML = `
+        <div class="speaker-header">
+            <span class="speaker-name">${escapeHtml(s.name || s.did)}</span>
+            <span class="badge badge-dlna">DLNA</span>
+            <span class="badge badge-airplay">AirPlay</span>
+        </div>
+        <div class="speaker-meta">
+            <span class="device-did">DID: ${escapeHtml(s.did)}</span>
+            <span>${escapeHtml(s.hardware || "")}</span>
+        </div>
+        <div class="volume-row">
+            <span class="vol-label">音量</span>
+            <input type="range" min="1" max="100" value="50" class="volume-slider" data-role="slider" style="--vol:50%">
+            <span class="volume-value" data-role="volume">50</span>
+        </div>
+        <div class="btn-row" style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-success btn-sm" data-act="play">▶ 投送</button>
+            <button class="btn btn-secondary btn-sm" data-act="pause">⏸ 暂停</button>
+            <button class="btn btn-secondary btn-sm" data-act="stop">⏹ 停止</button>
+        </div>`;
+
+    const slider = card.querySelector('[data-role="slider"]');
+    const volVal = card.querySelector('[data-role="volume"]');
+
+    slider.addEventListener("input", () => {
+        volVal.textContent = slider.value;
+        slider.style.setProperty("--vol", slider.value + "%");
+    });
+    slider.addEventListener("change", async () => {
+        try {
+            await api("/api/volume", {
+                method: "POST",
+                body: JSON.stringify({ did: s.did, volume: parseInt(slider.value, 10) }),
             });
-            let data = null;
-            try { data = await res.json(); } catch (_) { /* 非 JSON */ }
-            if (!res.ok) throw new Error((data && data.error) ? data.error : `HTTP ${res.status}`);
-            return data;
+        } catch (e) {
+            showTip(document.getElementById("tip-devices"), "音量设置失败：" + e.message, "error");
         }
+    });
 
-        function showTip(el, msg, type, duration = 5000) {
-            el.textContent = msg;
-            el.className = `tip active tip-${type}`;
-            if (duration) setTimeout(() => el.classList.remove("active"), duration);
-        }
+    card.querySelector('[data-act="play"]').addEventListener("click", () => openPlayModal(s));
+    card.querySelector('[data-act="pause"]').addEventListener("click", () => doAction("pause", s.did));
+    card.querySelector('[data-act="stop"]').addEventListener("click", () => doAction("stop", s.did));
 
-        function escapeHtml(s) {
-            return String(s == null ? "" : s)
-                .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-        }
+    return { card, slider, volVal };
+}
 
-        function deviceIcon() {
-            return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="6" y="2" width="12" height="20" rx="3"></rect>
-                <circle cx="12" cy="16" r="2"></circle><path d="M12 8v.01"></path></svg>`;
-        }
-
-        // ========== Config ==========
-        async function loadConfig() {
-            try {
-                config = await api("/api/config") || {};
-                document.getElementById("account").value = config.account || "";
-                document.getElementById("password").value = "";
-                document.getElementById("hostname").value = config.hostname || "";
-                document.getElementById("dlna_port").value = config.dlna_port || 8200;
-                document.getElementById("web_port").value = config.web_port || 8300;
-                document.getElementById("auto_play_on_set_uri").checked = !!config.auto_play_on_set_uri;
-                document.getElementById("auto_resume_on_interrupt").checked = !!config.auto_resume_on_interrupt;
-                document.getElementById("proxy_enabled").checked = !!config.proxy_enabled;
-                document.getElementById("enable_voice_control").checked = !!config.enable_voice_control;
-                document.getElementById("follow_device_volume").checked = !!config.follow_device_volume;
-            } catch (e) { console.warn("加载配置失败：", e.message); }
-        }
-
-        async function saveConfig() {
-            const btn = document.getElementById("btn-save-config");
-            const tip = document.getElementById("tip-config");
-            btn.disabled = true;
-            showTip(tip, "正在保存...", "success", 0);
-            try {
-                const res = await api("/api/config", {
-                    method: "POST",
-                    body: JSON.stringify({
-                        account: document.getElementById("account").value,
-                        password: document.getElementById("password").value,
-                        hostname: document.getElementById("hostname").value,
-                        dlna_port: parseInt(document.getElementById("dlna_port").value, 10),
-                        web_port: parseInt(document.getElementById("web_port").value, 10),
-                        auto_play_on_set_uri: document.getElementById("auto_play_on_set_uri").checked,
-                        auto_resume_on_interrupt: document.getElementById("auto_resume_on_interrupt").checked,
-                        proxy_enabled: document.getElementById("proxy_enabled").checked,
-                        enable_voice_control: document.getElementById("enable_voice_control").checked,
-                        follow_device_volume: document.getElementById("follow_device_volume").checked,
-                    }),
-                });
-                if (res && res.success === false) throw new Error(res.error || "保存失败");
-                showTip(tip, "✅ 已保存，应用重启中...", "success");
-                setTimeout(() => location.reload(), 3000);
-            } catch (e) {
-                showTip(tip, "❌ " + e.message, "error");
-            } finally { btn.disabled = false; }
-        }
-
-        // ========== Device List ==========
-        async function loadDevices() {
-            try {
-                const devices = await api("/api/devices") || [];
-                renderDevices(devices);
-            } catch (e) {
-                document.getElementById("device-list").innerHTML = `<div class="empty-state">加载失败：${escapeHtml(e.message)}</div>`;
-                document.getElementById("dev-count").textContent = "";
-            }
-        }
-
-        function renderDevices(devices) {
-            const container = document.getElementById("device-list");
-            const countEl = document.getElementById("dev-count");
-            if (!devicesInitDone && config.mi_did) {
-                config.mi_did.split(",").map(s => s.trim()).filter(Boolean).forEach(d => selectedDids.add(d));
-                devicesInitDone = true;
-            }
-            if (!devices.length) {
-                container.innerHTML = '<div class="empty-state">未发现设备。检查账号配置是否正确。</div>';
-                countEl.textContent = "";
-                document.getElementById("btn-apply-devices").disabled = true;
-                return;
-            }
-            countEl.textContent = `${devices.length} 个设备`;
-            container.innerHTML = devices.map(dev => {
-                const did = dev.miotDID || "";
-                const isSel = selectedDids.has(did);
-                return `<div class="device-item ${isSel ? "selected" : ""}" onclick="toggleDevice(this, '${escapeHtml(did)}')">
-                    <div class="device-icon">${deviceIcon()}</div>
-                    <div class="device-body">
-                        <div class="device-name">${escapeHtml(dev.name || "未命名设备")}</div>
-                        <div class="device-meta">
-                            <span>${escapeHtml(dev.hardware || "")}</span>
-                            <span class="device-did">DID: ${escapeHtml(did)}</span>
-                        </div>
-                    </div>
-                    <div class="device-check"></div>
-                </div>`;
-            }).join("");
-            if (selectedDids.size > 0) countEl.textContent += `（已选 ${selectedDids.size}）`;
-            document.getElementById("btn-apply-devices").disabled = false;
-        }
-
-        function toggleDevice(el, did) {
-            if (!did) return;
-            const nowSel = !el.classList.contains("selected");
-            el.classList.toggle("selected", nowSel);
-            if (nowSel) selectedDids.add(did); else selectedDids.delete(did);
-            const countEl = document.getElementById("dev-count");
-            const base = (countEl.textContent || "").replace(/（已选 \d+）/, "");
-            countEl.textContent = selectedDids.size > 0 ? `${base}（已选 ${selectedDids.size}）` : base;
-        }
-
-        async function applyDevices() {
-            const btn = document.getElementById("btn-apply-devices");
+async function doAction(act, did) {
+    try {
+        const res = await api("/api/" + act, { method: "POST", body: JSON.stringify({ did }) });
+        if (res && res.success === false) {
             const tip = document.getElementById("tip-devices");
-            const mi_did = Array.from(selectedDids).filter(Boolean).join(",");
-            if (!mi_did) { showTip(tip, "⚠️ 请至少选择一个设备", "error"); return; }
-            btn.disabled = true;
-            showTip(tip, "正在应用...", "success", 0);
-            try {
-                await api("/api/config", { method: "POST", body: JSON.stringify({ mi_did }) });
-                showTip(tip, "✅ 已应用设备选择，服务重启中...", "success");
-                setTimeout(() => location.reload(), 3000);
-            } catch (e) {
-                showTip(tip, "❌ " + e.message, "error");
-                btn.disabled = false;
-            }
+            if (tip) showTip(tip, "操作失败：" + (res.error || ""), "error");
         }
+    } catch (e) {
+        const tip = document.getElementById("tip-devices");
+        if (tip) showTip(tip, "操作失败：" + e.message, "error");
+    }
+}
 
-        // ========== Speakers / Renderers ==========
-        async function loadSpeakers() {
-            try {
-                const speakers = await api("/api/speakers") || [];
-                renderSpeakers(speakers);
-            } catch (e) {
-                document.getElementById("renderers-list").innerHTML = `<div class="empty-state">加载失败：${escapeHtml(e.message)}</div>`;
-            }
-        }
+// ========== Play Modal ==========
+let modalDid = null;
 
-        function renderSpeakers(speakers) {
-            const container = document.getElementById("renderers-list");
-            Object.keys(speakerEls).forEach(did => {
-                if (!speakers.find(s => s.did === did)) {
-                    speakerEls[did].card.remove();
-                    delete speakerEls[did];
-                }
-            });
-            if (!speakers.length) {
-                container.innerHTML = '<div class="empty-state">暂无媒体设备。在左侧选择设备并点击应用。</div>';
-                return;
-            }
-            const place = container.querySelector(".empty-state");
-            if (place) place.remove();
-            speakers.forEach(s => {
-                if (speakerEls[s.did]) return;
-                speakerEls[s.did] = buildSpeakerCard(s);
-                container.appendChild(speakerEls[s.did].card);
-            });
-        }
+function openPlayModal(s) {
+    modalDid = s.did;
+    document.getElementById("modal-speaker-name").textContent = s.name || s.did;
+    document.getElementById("play-url").value = "";
+    document.getElementById("modal-play").classList.add("active");
+    document.getElementById("play-url").focus();
+}
 
-        function buildSpeakerCard(s) {
-            const card = document.createElement("div");
-            card.className = "speaker-item";
-            card.dataset.did = s.did;
+function closePlayModal() {
+    document.getElementById("modal-play").classList.remove("active");
+    modalDid = null;
+}
 
-            card.innerHTML = `
-                <div class="speaker-header">
-                    <span class="speaker-name">${escapeHtml(s.name || s.did)}</span>
-                    <span class="badge badge-dlna">DLNA</span>
-                    <span class="badge badge-airplay">AirPlay</span>
-                </div>
-                <div class="speaker-meta">
-                    <span class="device-did">DID: ${escapeHtml(s.did)}</span>
-                    <span>${escapeHtml(s.hardware || "")}</span>
-                </div>
-                <div class="volume-row">
-                    <span class="vol-label">音量</span>
-                    <input type="range" min="1" max="100" value="50" class="volume-slider" data-role="slider">
-                    <span class="volume-value" data-role="volume">50</span>
-                </div>
-                <div class="btn-row" style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <button class="btn btn-success btn-sm" data-act="play">▶ 投送</button>
-                    <button class="btn btn-secondary btn-sm" data-act="pause">⏸ 暂停</button>
-                    <button class="btn btn-secondary btn-sm" data-act="stop">⏹ 停止</button>
-                </div>`;
-
-            const slider = card.querySelector('[data-role="slider"]');
-            const volVal = card.querySelector('[data-role="volume"]');
-
-            slider.addEventListener("input", () => { volVal.textContent = slider.value; });
-            slider.addEventListener("change", async () => {
-                try {
-                    await api("/api/volume", {
-                        method: "POST",
-                        body: JSON.stringify({ did: s.did, volume: parseInt(slider.value, 10) }),
-                    });
-                } catch (e) {
-                    showTip(document.getElementById("tip-devices"), "音量设置失败：" + e.message, "error");
-                }
-            });
-
-            card.querySelector('[data-act="play"]').addEventListener("click", () => openPlayModal(s));
-            card.querySelector('[data-act="pause"]').addEventListener("click", () => doAction("pause", s.did));
-            card.querySelector('[data-act="stop"]').addEventListener("click", () => doAction("stop", s.did));
-
-            return { card, slider, volVal };
-        }
-
-        async function doAction(act, did) {
-            try {
-                const res = await api("/api/" + act, { method: "POST", body: JSON.stringify({ did }) });
-                if (res && res.success === false) {
-                    const tip = document.getElementById("tip-devices");
-                    if (tip) showTip(tip, "操作失败：" + (res.error || ""), "error");
-                }
-            } catch (e) {
-                const tip = document.getElementById("tip-devices");
-                if (tip) showTip(tip, "操作失败：" + e.message, "error");
-            }
-        }
-
-        // ========== Play Modal ==========
-        let modalDid = null;
-
-        function openPlayModal(s) {
-            modalDid = s.did;
-            document.getElementById("modal-speaker-name").textContent = s.name || s.did;
-            document.getElementById("play-url").value = "";
-            document.getElementById("modal-play").classList.add("active");
-            document.getElementById("play-url").focus();
-        }
-
-        function closePlayModal() {
-            document.getElementById("modal-play").classList.remove("active");
-            modalDid = null;
-        }
-
-        async function confirmPlay() {
-            const url = document.getElementById("play-url").value.trim();
-            if (!url || !modalDid) return;
-            const btn = document.getElementById("btn-play-confirm");
-            btn.disabled = true;
-            try {
-                const res = await api("/api/play", {
-                    method: "POST",
-                    body: JSON.stringify({ did: modalDid, url }),
-                });
-                if (res && res.success === false) {
-                    const tip = document.getElementById("tip-devices");
-                    if (tip) showTip(tip, "投送失败：" + (res.error || ""), "error");
-                }
-            } catch (e) {
-                const tip = document.getElementById("tip-devices");
-                if (tip) showTip(tip, "投送失败：" + e.message, "error");
-            } finally {
-                btn.disabled = false;
-                closePlayModal();
-            }
-        }
-
-        document.getElementById("modal-play").addEventListener("click", e => {
-            if (e.target.id === "modal-play") closePlayModal();
+async function confirmPlay() {
+    const url = document.getElementById("play-url").value.trim();
+    if (!url || !modalDid) return;
+    const btn = document.getElementById("btn-play-confirm");
+    btn.disabled = true;
+    try {
+        const res = await api("/api/play", {
+            method: "POST",
+            body: JSON.stringify({ did: modalDid, url }),
         });
-        document.addEventListener("keydown", e => {
-            if (e.key === "Escape") {
-                if (document.getElementById("modal-play").classList.contains("active"))
-                    closePlayModal();
-                if (document.getElementById("modal-login").classList.contains("active"))
-                    closeLoginModal();
-            }
-            if (e.key === "Enter" && document.getElementById("modal-play").classList.contains("active"))
-                confirmPlay();
-        });
-
-        // ========== Login Modal ==========
-        function openLoginModal() {
-            document.getElementById("login-userid").value = "";
-            document.getElementById("login-passtoken").value = "";
-            document.getElementById("modal-login").classList.add("active");
-            document.getElementById("login-userid").focus();
-        }
-        function closeLoginModal() {
-            document.getElementById("modal-login").classList.remove("active");
-        }
-        async function loginXiaomi() {
-            const userId = document.getElementById("login-userid").value.trim();
-            const passToken = document.getElementById("login-passtoken").value.trim();
-            if (!userId || !passToken) {
-                showTip(document.getElementById("tip-config"), "❌ userId 和 passToken 不能为空", "error");
-                return;
-            }
-            const btn = document.getElementById("btn-login-confirm");
+        if (res && res.success === false) {
             const tip = document.getElementById("tip-devices");
-            btn.disabled = true;
-            showTip(tip, "正在登录...", "success", 0);
-            try {
-                await api("/api/config", {
-                    method: "POST",
-                    body: JSON.stringify({ cookie: `userId=${userId}; passToken=${passToken}` }),
-                });
-                showTip(tip, "✅ 登录成功，服务重启中...", "success");
-                closeLoginModal();
-                setTimeout(() => location.reload(), 3000);
-            } catch (e) {
-                showTip(tip, "❌ 登录失败：" + e.message, "error");
-            } finally {
-                btn.disabled = false;
-            }
+            if (tip) showTip(tip, "投送失败：" + (res.error || ""), "error");
         }
-        document.getElementById("modal-login").addEventListener("click", e => {
-            if (e.target.id === "modal-login") closeLoginModal();
-        });
+    } catch (e) {
+        const tip = document.getElementById("tip-devices");
+        if (tip) showTip(tip, "投送失败：" + e.message, "error");
+    } finally {
+        btn.disabled = false;
+        closePlayModal();
+    }
+}
 
-        // ========== Init ==========
-        (async function () {
-            await loadConfig();
-            await loadDevices();
-            await loadSpeakers();
-            setInterval(loadDevices, POLL_DEVICES_MS);
-            setInterval(loadSpeakers, POLL_SPEAKERS_MS);
-        })();
-    </script>
+document.getElementById("modal-play").addEventListener("click", e => {
+    if (e.target.id === "modal-play") closePlayModal();
+});
+document.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+        if (document.getElementById("modal-play").classList.contains("active"))
+            closePlayModal();
+        if (document.getElementById("modal-login").classList.contains("active"))
+            closeLoginModal();
+    }
+    if (e.key === "Enter" && document.getElementById("modal-play").classList.contains("active"))
+        confirmPlay();
+});
+
+// ========== Login Modal ==========
+function openLoginModal() {
+    document.getElementById("login-userid").value = "";
+    document.getElementById("login-passtoken").value = "";
+    document.getElementById("modal-login").classList.add("active");
+    document.getElementById("login-userid").focus();
+}
+function closeLoginModal() {
+    document.getElementById("modal-login").classList.remove("active");
+}
+async function loginXiaomi() {
+    const userId = document.getElementById("login-userid").value.trim();
+    const passToken = document.getElementById("login-passtoken").value.trim();
+    if (!userId || !passToken) {
+        showTip(document.getElementById("tip-config"), "❌ userId 和 passToken 不能为空", "error");
+        return;
+    }
+    const btn = document.getElementById("btn-login-confirm");
+    const tip = document.getElementById("tip-devices");
+    btn.disabled = true;
+    showTip(tip, "正在登录...", "success", 0);
+    try {
+        await api("/api/config", {
+            method: "POST",
+            body: JSON.stringify({ cookie: `userId=${userId}; passToken=${passToken}` }),
+        });
+        showTip(tip, "✅ 登录成功，服务重启中...", "success");
+        closeLoginModal();
+        setTimeout(() => location.reload(), 3000);
+    } catch (e) {
+        showTip(tip, "❌ 登录失败：" + e.message, "error");
+    } finally {
+        btn.disabled = false;
+    }
+}
+document.getElementById("modal-login").addEventListener("click", e => {
+    if (e.target.id === "modal-login") closeLoginModal();
+});
+
+// ========== Init ==========
+(async function () {
+    await loadConfig();
+    await loadDevices();
+    await loadSpeakers();
+    setInterval(loadDevices, POLL_DEVICES_MS);
+    setInterval(loadSpeakers, POLL_SPEAKERS_MS);
+})();
+</script>
 </body>
-
 </html>

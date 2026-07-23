@@ -381,6 +381,25 @@ class DlnaRenderer:
                     else:
                         self.transport_state = TRANSPORT_STATE_STOPPED
         else:
+            # No next_uri yet — QQ Music app may be in background.
+            # Set TRANSITIONING to trigger a UPnP event, waking the client
+            # to send SetNextAVTransportURI. Wait up to 10s before giving up.
+            async with self._lock:
+                self.transport_state = TRANSPORT_STATE_TRANSITIONING
+            await self.notify_state_change()
+            log.info(f"[{self.friendly_name}] 等待下一曲 URI（最多 10s）...")
+
+            waited = 0
+            while waited < 10:
+                await asyncio.sleep(0.5)
+                waited += 0.5
+                if self.next_uri:
+                    break
+            if self.next_uri:
+                log.info(f"[{self.friendly_name}] 等待 {waited:.1f}s 后收到下一曲")
+                await self.next_track()
+                return
+
             if self.speaker:
                 await self.speaker.stop()
                 log.info(f"[{self.friendly_name}] 已停止当前播放，模拟自然播完")

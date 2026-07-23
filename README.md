@@ -80,8 +80,7 @@ docker run -d --name miairx \
 
 > Windows/macOS 不建议用 Docker（组播不通），请用方式二或三。
 
-#### 方式二：Release安装
-先确保安装了Python 3.12+，而后与Release处下载，解压后进入目录执行：
+#### 方式二：pip 安装
 
 ```bash
 pip install aiohttp miservice-fork zeroconf pycryptodome structlog pydantic pydantic-settings
@@ -99,9 +98,33 @@ python start.py
 
 ---
 
-### 配置
+### 无配置启动（零门槛）
 
-如果不通过环境变量传入，需编辑 `conf/config.json`：
+**不需要写任何配置文件**。直接运行：
+
+```bash
+python start.py    # 或者 start.bat
+```
+
+第一次启动会自动弹出 Web 界面引导你输入小米账号密码，之后一切就绪。
+
+```json
+// conf/config.json — 自动生成的默认配置，不用改
+{
+  "account":  "",
+  "password": "",
+  "mi_did":   "",
+  "hostname": ""
+}
+```
+
+流程：`启动 → 浏览器打开 http://localhost:8300 → 设置页填账号密码 → 设备管理选音箱 → 保存重启 → 投！`
+
+---
+
+### 配置（可选）
+
+如果你喜欢手动配，编辑 `conf/config.json`：
 
 ```json
 {
@@ -116,12 +139,9 @@ python start.py
 |------|------|------|
 | `account` | ✅ | 小米账号（手机号/邮箱） |
 | `password` | ✅ | 小米密码 |
-| `mi_did` | 建议 | 音箱设备 ID，**可以先不填** |
+| `mi_did` | ❌ | 音箱设备 ID，**可以不填，去 Web 界面选** |
 | `hostname` | ❌ | 电脑 LAN IP，**留空自动检测** |
 
-> 💡 **不知道 DID？** 把 `mi_did` 留空，启动后开 Web 界面 → 设备管理 → 复制 DID → 改配置重启。
-方法2
-现已加入无配置启动兼容，可直接启动主程序进入WebUI配置
 ---
 
 ### 启动
@@ -144,7 +164,7 @@ INFO  MiAirX v1.0.0
 INFO  Hostname: 192.168.1.172
 INFO  DLNA  HTTP server on :8200
 INFO  Web  management on :8300
-INFO  Speakers registered: 小爱音箱XXX (L05C)
+INFO  Speakers registered: 小爱音箱Play增强版 (L05C)
 ```
 
 ---
@@ -154,22 +174,22 @@ INFO  Speakers registered: 小爱音箱XXX (L05C)
 #### 📱 QQ 音乐
 
 1. 选歌 → 播放界面右上角 ··· → 投屏
-2. 点 **XiaoAI XXX**
+2. 点 **XiaoAI L05C**
 3. 音箱出声
 
 #### 🎵 网易云音乐
 
 1. 选歌 → 播放界面 → 分享 → 投屏到设备
-2. 选 **XiaoAI XXX**
+2. 选 **XiaoAI L05C**
 3. 音箱出声
 
 #### 🍎 iOS
 
 1. 控制中心 → 隔空播放
-2. 选 **XiaoAI XXX**
+2. 选 **XiaoAI L05C**
 3. 任意 App 音频都会路由到音箱
 
-> 💡 设备名格式示例：`XiaoAI L05C (663160981)`（硬件型号 + DID）
+> 💡 设备名格式：`XiaoAI L05C (663160981)`（硬件型号 + DID）
 
 ---
 
@@ -259,7 +279,7 @@ docker run -d --name miairx \
 <summary><b>Q: 投屏列表里看不到音箱？</b></summary>
 
 - 电脑和音箱**同一 Wi-Fi**
-- 防火墙放行 8200(TCP+UDP)、8300(TCP)
+- 防火墙放行 1900(UDP)、8200(TCP)、8300(TCP)
 - 关闭 VPN/代理试试
 - Docker 用户确认用了 `--network host`
 </details>

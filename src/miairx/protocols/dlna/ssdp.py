@@ -132,66 +132,70 @@ class SsdpServer:
         )
         return notify.encode("utf-8")
 
-    def _resolve_bind_ip(self) -> str:
-        """Return the LAN IP to bind the SSDP socket to.
+    @staticmethod
+    def _is_docker() -> bool:
+        """Detect if running inside a Docker container."""
+        return os.path.isfile("/.dockerenv")
 
-        Uses the configured hostname if it's a real IP, otherwise falls
-        back to INADDR_ANY. Binding to a specific IP is critical in
-        Docker/container environments where 0.0.0.0 has no multicast route.
+    def _resolve_bind_ip(self) -> str:
+        """Return the IP to bind the SSDP socket to.
+
+        In Docker, multicast via 0.0.0.0 has no route — must bind to
+        the actual LAN IP. Outside Docker, use INADDR_ANY as usual.
         """
+        if not SsdpServer._is_docker():
+            return ""  # INADDR_ANY
+        # Docker: prefer configured hostname, fall back to detection
         if self.hostname and self.hostname not in ("", "0.0.0.0"):
             try:
                 socket.inet_aton(self.hostname)
                 return self.hostname
             except OSError:
                 pass
-        return SsdpServer._detect_local_ip()
+        return SsdpServer._detect_lan_ip()
 
     @staticmethod
-    def _detect_local_ip() -> str:
-        """Detect the LAN IP by connecting to an external address."""
+    def _detect_lan_ip() -> str:
+        """Detect LAN IP by probing an external address."""
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                 s.connect(("8.8.8.8", 80))
                 return s.getsockname()[0]
         except OSError:
-            return "0.0.0.0"
+            return ""
 
     async def start(self):
         """Start SSDP server."""
         loop = asyncio.get_running_loop()
 
-        # Resolve LAN IP for multicast binding. Using the actual IP
-        # instead of INADDR_ANY fixes multicast routing in Docker and
-        # some Linux configurations where 0.0.0.0 doesn't have a route
-        # to 239.255.255.250.
-        lan_ip = self._resolve_bind_ip()
+        bind_ip = self._resolve_bind_ip()
+        in_docker = SsdpServer._is_docker()
 
         # Create UDP socket
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        # Windows compatibility: SO_REUSEPORT doesn't exist
         if hasattr(socket, "SO_REUSEPORT"):
             try:
                 self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             except (AttributeError, OSError):
                 pass
 
-        # Bind to the specific LAN IP so multicast has a known route
-        self._sock.bind((lan_ip, SSDP_PORT))
+        self._sock.bind((bind_ip, SSDP_PORT))
 
-        # Tell kernel which interface to use for outgoing multicast
-        self._sock.setsockopt(
-            socket.IPPROTO_IP, socket.IP_MULTICAST_IF,
-            socket.inet_aton(lan_ip),
-        )
+        # Docker: tell kernel which interface to use for multicast
+        if in_docker and bind_ip:
+            self._sock.setsockopt(
+                socket.IPPROTO_IP, socket.IP_MULTICAST_IF,
+                socket.inet_aton(bind_ip),
+            )
 
-        # Join multicast group on the correct interface
+        # Join multicast group
+        iface = bind_ip if in_docker and bind_ip else "0.0.0.0"
         mreq = struct.pack(
             "4s4s",
             socket.inet_aton(SSDP_ADDR),
-            socket.inet_aton(lan_ip),
+            socket.inet_aton(iface),
         )
         self._sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         self._sock.setblocking(False)

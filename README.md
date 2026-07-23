@@ -64,9 +64,32 @@ QQ音乐 ──DLNA──▶  MiAirX  ──MiNA API──▶  小爱音箱
 
 ## 🚀 快速开始
 
-### 三种安装方式
+### 方式一：whl 安装（推荐，零依赖）
 
-#### 方式一：Docker（仅 Linux）
+1. 打开 [Releases](https://github.com/PDSB001/MiAirX/releases) 页面
+2. 下载最新的 `.whl` 文件
+3. 安装并启动：
+
+```bash
+pip install miairx-x.x.x-py3-none-any.whl
+miairx
+```
+
+> 依赖自动装，装完直接 `miairx` 启动。
+
+### 方式二：源码 / tar.gz（需手动装依赖）
+
+git clone 或从 Releases 下载 `tar.gz` 解压后，**先手动装依赖**，再用 `start.py` 启动：
+
+```bash
+# 1. 装依赖
+pip install aiohttp miservice-fork zeroconf pycryptodome structlog pydantic pydantic-settings
+
+# 2. 启动
+python start.py
+```
+
+### 方式三：Docker（仅 Linux）
 
 ```bash
 mkdir -p conf
@@ -78,26 +101,15 @@ docker run -d --name miairx \
   ghcr.io/pdsb001/miairx:master
 ```
 
-> Windows/macOS 不建议用 Docker（组播不通），请用方式二或三。
+> 启动后打开 `http://你的Linux IP:8300`。Windows/macOS 不建议用 Docker（组播不通）。
 
-#### 方式二：pip 安装
+### 启动命令速查
 
-```bash
-# 从 GitHub Release 下载 whl 文件
-pip install miairx-1.0.0-py3-none-any.whl
-python -m miairx
-```
-
-> 📦 最新 whl 包在 [Releases](https://github.com/PDSB001/MiAirX/releases) 页面下载。
-
-#### 方式三：源码安装
-
-```bash
-git clone https://github.com/PDSB001/MiAirX.git
-cd MiAirX
-pip install -e .
-python start.py
-```
+| 安装方式 | 启动命令 |
+|----------|----------|
+| whl | `miairx` 或 `python -m miairx` |
+| 源码 / tar.gz | `python start.py` |
+| Docker | `docker run ...`（见上方） |
 
 ---
 
@@ -149,15 +161,17 @@ python start.py    # 或者 start.bat
 
 ### 启动
 
-```bash
-# Windows 一键
-start.bat
+根据你的安装方式选择对应命令：
 
-# Python 一键
+```bash
+# whl 安装 → 直接用命令
+miairx
+
+# 源码 / tar.gz → start.py
 python start.py
 
-# 模块模式（推荐调试用）
-python -m miairx --debug
+# Windows → 双击
+start.bat
 ```
 
 启动成功后会看到：

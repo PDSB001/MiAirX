@@ -1,0 +1,51 @@
+[project]
+name = "miairx"
+version = "1.0.0"
+description = "Modern DLNA/AirPlay bridge for Xiaomi AI speakers"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.10.0,<4",
+    "miservice-fork>=0.3.0,<1",
+    "zeroconf>=0.130.0,<1",
+    "pycryptodome>=3.20.0,<4",
+    "structlog>=24.0.0,<25",
+    "pydantic>=2.5.0,<3",
+    "pydantic-settings>=2.1.0,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.5.0",
+    "pyright>=1.1.370",
+]
+
+[project.scripts]
+miairx = "miairx.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/miairx"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM", "TCH"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--strict-markers -v"

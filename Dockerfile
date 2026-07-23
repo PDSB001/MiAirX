@@ -1,34 +1,18 @@
-# ──── Stage 1: Build wheel ────
-FROM python:3.12-slim AS builder
-
-WORKDIR /build
-
-# Install build deps
-RUN pip install --no-cache-dir build
-
-COPY pyproject.toml README.md .
-COPY src/ src/
-
-# Build wheel
-RUN python -m build --wheel
-
-# ──── Stage 2: Runtime ────
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# System audio deps
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install pre-built wheel
-COPY --from=builder /build/dist /tmp/dist
-RUN pip install --no-cache-dir /tmp/dist/*.whl && rm -rf /tmp/dist
+# Install Python deps
+COPY pyproject.toml README.md .
+COPY src/ src/
+RUN pip install --no-cache-dir .
 
-# Volume for persistent config
+# Config volume
 RUN mkdir -p /app/conf
 VOLUME ["/app/conf"]
 

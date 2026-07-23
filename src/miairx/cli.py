@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import logging
+import os
 import sys
 
 from miairx import __version__
@@ -75,11 +76,32 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_config(args: argparse.Namespace) -> AppConfig:
-    """Load configuration from file and command line args."""
+    """Load configuration from file, env vars, and command line args.
+
+    Priority: CLI args > env vars > config.json > defaults
+    """
     # Load from file
     store = ConfigStore(conf_path=args.config)
     config = store.load()
-    
+
+    # Environment variable overrides (useful for Docker)
+    if not args.account:
+        args.account = os.environ.get("MI_USER", "")
+    if not args.password:
+        args.password = os.environ.get("MI_PASS", "")
+    if not args.did:
+        args.did = os.environ.get("MI_DID", "")
+    if not args.hostname:
+        args.hostname = os.environ.get("MIAIR_HOSTNAME", "")
+    if not args.dlna_port:
+        port = os.environ.get("MIAIR_DLNA_PORT", "")
+        if port:
+            args.dlna_port = int(port)
+    if not args.web_port:
+        port = os.environ.get("MIAIR_WEB_PORT", "")
+        if port:
+            args.web_port = int(port)
+
     # Override with command line arguments
     if args.account:
         config.account = args.account
@@ -95,7 +117,7 @@ def load_config(args: argparse.Namespace) -> AppConfig:
         config.web_port = args.web_port
     if args.verbose:
         config.verbose = True
-    
+
     return config
 
 

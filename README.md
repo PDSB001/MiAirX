@@ -83,9 +83,12 @@ docker run -d --name miairx \
 #### 方式二：pip 安装
 
 ```bash
-pip install aiohttp miservice-fork zeroconf pycryptodome structlog pydantic pydantic-settings
+# 从 GitHub Release 下载 whl 文件
+pip install miairx-1.0.0-py3-none-any.whl
 python -m miairx
 ```
+
+> 📦 最新 whl 包在 [Releases](https://github.com/PDSB001/MiAirX/releases) 页面下载。
 
 #### 方式三：源码安装
 
@@ -164,7 +167,7 @@ INFO  MiAirX v1.0.0
 INFO  Hostname: 192.168.1.172
 INFO  DLNA  HTTP server on :8200
 INFO  Web  management on :8300
-INFO  Speakers registered: 小爱音箱Play增强版 (L05C)
+INFO  Speakers registered: 你的小爱音箱
 ```
 
 ---
@@ -174,22 +177,22 @@ INFO  Speakers registered: 小爱音箱Play增强版 (L05C)
 #### 📱 QQ 音乐
 
 1. 选歌 → 播放界面右上角 ··· → 投屏
-2. 点 **XiaoAI L05C**
+2. 点 **XiaoAI Speaker**
 3. 音箱出声
 
 #### 🎵 网易云音乐
 
 1. 选歌 → 播放界面 → 分享 → 投屏到设备
-2. 选 **XiaoAI L05C**
+2. 选 **XiaoAI Speaker**
 3. 音箱出声
 
 #### 🍎 iOS
 
 1. 控制中心 → 隔空播放
-2. 选 **XiaoAI L05C**
+2. 选 **XiaoAI Speaker**
 3. 任意 App 音频都会路由到音箱
 
-> 💡 设备名格式：`XiaoAI L05C (663160981)`（硬件型号 + DID）
+> 💡 设备名格式：`XiaoAI Speaker`（可在 Web 界面自定义）
 
 ---
 
@@ -279,7 +282,7 @@ docker run -d --name miairx \
 <summary><b>Q: 投屏列表里看不到音箱？</b></summary>
 
 - 电脑和音箱**同一 Wi-Fi**
-- 防火墙放行 1900(UDP)、8200(TCP)、8300(TCP)
+- Windows 防火墙弹出提示时点"允许访问"
 - 关闭 VPN/代理试试
 - Docker 用户确认用了 `--network host`
 </details>

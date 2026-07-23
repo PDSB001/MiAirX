@@ -59,13 +59,20 @@ class DlnaHttpServer:
 
         log.info(f"Registered DLNA renderer: {renderer.friendly_name}")
 
+    _UA = (
+        "Mozilla/5.0 (Linux; Android 12) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Mobile Safari/537.36"
+    )
+
     def _get_proxy_session(self) -> aiohttp.ClientSession:
         """Get or create persistent HTTP session for proxy."""
         if not self._proxy_session or self._proxy_session.closed:
             connector = aiohttp.TCPConnector(limit=50, ttl_dns_cache=300)
             self._proxy_session = aiohttp.ClientSession(
                 connector=connector,
-                timeout=aiohttp.ClientTimeout(total=120, connect=10, sock_read=60)
+                timeout=aiohttp.ClientTimeout(total=120, connect=10, sock_read=60),
+                headers={"User-Agent": self._UA},
             )
         return self._proxy_session
 

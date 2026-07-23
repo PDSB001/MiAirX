@@ -7,7 +7,7 @@ license = {text = "MIT"}
 requires-python = ">=3.12"
 dependencies = [
     "aiohttp>=3.10.0,<4",
-    "miservice-fork>=0.3.0,<1",
+    "miservice-fork>=0.3.0",
     "zeroconf>=0.130.0,<1",
     "pycryptodome>=3.20.0,<4",
     "structlog>=24.0.0,<25",

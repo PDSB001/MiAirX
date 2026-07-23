@@ -154,9 +154,15 @@ MiAirX/
 ## 🐳 Docker
 
 ```bash
-docker build -t miairx .
-docker run -p 8200:8200 -p 8300:8300 -v ./conf:/app/conf miairx
+# 直接拉 GitHub 自动编译的镜像
+docker pull ghcr.io/pdsb001/miairx:master
+
+docker run -p 8200:8200 -p 8300:8300 \
+  -v $(pwd)/conf:/app/conf \
+  ghcr.io/pdsb001/miairx:master
 ```
+
+> 每次 push 到 master，GitHub Actions 自动构建 amd64 + arm64 镜像并推送到 ghcr.io。
 
 ---
 

@@ -1,0 +1,17 @@
+__pycache__
+*.pyc
+.venv
+venv
+.git
+.gitignore
+*.md
+docs/
+tests/
+dist/
+build/
+*.egg-info
+conf/config.json
+*.png
+*.bat
+Dockerfile
+.dockerignore

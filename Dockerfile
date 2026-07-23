@@ -1,29 +1,42 @@
-# MiAirX Docker Image
-FROM python:3.12-slim
+# ──── Stage 1: Build wheel ────
+FROM python:3.12-slim AS builder
 
-# Set working directory
-WORKDIR /app
+WORKDIR /build
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+# Install build deps
+RUN pip install --no-cache-dir build
 
-# Copy project files
 COPY pyproject.toml .
 COPY src/ src/
 
-# Install Python dependencies
-RUN pip install --no-cache-dir .
+# Build wheel
+RUN python -m build --wheel
 
-# Create config directory
+# ──── Stage 2: Runtime ────
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# System audio deps
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install pre-built wheel
+COPY --from=builder /build/dist/*.whl /tmp/
+RUN pip install --no-cache-dir /tmp/*.whl && rm /tmp/*.whl
+
+# Volume for persistent config
 RUN mkdir -p /app/conf
+VOLUME ["/app/conf"]
 
-# Expose ports
 EXPOSE 8200 8300
 
-# Set environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Run the application
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8300/api/status')" || exit 1
+
 CMD ["python", "-m", "miairx"]

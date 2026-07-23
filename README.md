@@ -177,22 +177,22 @@ INFO  Speakers registered: 你的小爱音箱
 #### 📱 QQ 音乐
 
 1. 选歌 → 播放界面右上角 ··· → 投屏
-2. 点 **XiaoAI Speaker**
+2. 点 **[你的设备名]**
 3. 音箱出声
 
 #### 🎵 网易云音乐
 
 1. 选歌 → 播放界面 → 分享 → 投屏到设备
-2. 选 **XiaoAI Speaker**
+2. 选 **[你的设备名]**
 3. 音箱出声
 
 #### 🍎 iOS
 
 1. 控制中心 → 隔空播放
-2. 选 **XiaoAI Speaker**
+2. 选 **[你的设备名]**
 3. 任意 App 音频都会路由到音箱
 
-> 💡 设备名格式：`XiaoAI Speaker`（可在 Web 界面自定义）
+> 💡 设备名默认为 `XiaoAI [硬件型号]`，可在 Web 界面自定义。
 
 ---
 
@@ -282,7 +282,7 @@ docker run -d --name miairx \
 <summary><b>Q: 投屏列表里看不到音箱？</b></summary>
 
 - 电脑和音箱**同一 Wi-Fi**
-- Windows 防火墙弹出提示时点"允许访问"
+- 防火墙放行 8200（TCP+UDP）、8300（TCP）
 - 关闭 VPN/代理试试
 - Docker 用户确认用了 `--network host`
 </details>

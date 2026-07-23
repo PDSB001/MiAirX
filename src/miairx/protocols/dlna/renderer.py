@@ -149,7 +149,6 @@ class DlnaRenderer:
                 self._play_check_task.cancel()
                 self._play_check_task = None
 
-            self.transport_state = TRANSPORT_STATE_TRANSITIONING
             self._user_stopped = False
             self._stuck_paused_since = 0.0
             log.info(f"[{self.friendly_name}] Play: {self.current_uri}")
@@ -176,12 +175,15 @@ class DlnaRenderer:
             if needs_transcode:
                 self.transport_state = TRANSPORT_STATE_PLAYING
                 self._play_grace_until = time.time() + 8.0
-                log.info(f"[{self.friendly_name}] 转码模式: 先返回 PLAYING 状态")
 
         if needs_transcode:
             await self.notify_state_change()
 
+        # Set TRANSITIONING only briefly before the actual play_url call,
+        # so polling clients (NetEase) don't see it as a failure.
         async with self._lock:
+            if not needs_transcode:
+                self.transport_state = TRANSPORT_STATE_TRANSITIONING
             success = await self.speaker.play_url(play_url)
             if success:
                 self.transport_state = TRANSPORT_STATE_PLAYING
@@ -375,17 +377,20 @@ class DlnaRenderer:
                     play_url = self.proxy_url_func(self.current_uri, self.udn)
                 async with self._lock:
                     self.transport_state = TRANSPORT_STATE_TRANSITIONING
-                success = await self.speaker.play_url(play_url)
-                async with self._lock:
-                    if success:
-                        self.transport_state = TRANSPORT_STATE_PLAYING
-                        self._play_start_time = time.time()
-                        if self._play_check_task:
-                            self._play_check_task.cancel()
-                            self._play_check_task = None
-                        self._play_check_task = asyncio.create_task(self._check_play_status())
-                    else:
-                        self.transport_state = TRANSPORT_STATE_STOPPED
+                success = False
+                try:
+                    success = await self.speaker.play_url(play_url)
+                finally:
+                    async with self._lock:
+                        if success:
+                            self.transport_state = TRANSPORT_STATE_PLAYING
+                            self._play_start_time = time.time()
+                            if self._play_check_task:
+                                self._play_check_task.cancel()
+                                self._play_check_task = None
+                            self._play_check_task = asyncio.create_task(self._check_play_status())
+                        else:
+                            self.transport_state = TRANSPORT_STATE_STOPPED
         else:
             # No next_uri yet — QQ Music app may be in background.
             # Set TRANSITIONING to trigger a UPnP event, waking the client

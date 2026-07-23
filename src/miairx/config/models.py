@@ -36,8 +36,21 @@ class SpeakerConfig(BaseModel):
         return True
 
     def get_dlna_name(self) -> str:
-        """Get DLNA display name for this speaker."""
-        return self.dlna_name or self.name or f"XiaoAI-{self.did}"
+        """Get DLNA display name for this speaker.
+
+        Priority:
+        1. Explicit dlna_name (user override)
+        2. Friendly speaker name (e.g. "XiaoAI Speaker (L05C)")
+        3. Auto-generated from DID
+
+        We use an ASCII-safe English name as the primary value because
+        some DLNA clients (notably NetEase Cloud Music on Android) reject
+        or fail to display non-ASCII friendlyName values.
+        """
+        if self.dlna_name:
+            return self.dlna_name
+        hardware = self.hardware or "Speaker"
+        return f"XiaoAI {hardware} ({self.did})"
 
     def ensure_udn(self) -> None:
         """Ensure UDN (Unique Device Name) is set."""

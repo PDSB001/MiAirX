@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import socket
 import time
 from typing import Optional
 
@@ -153,8 +154,12 @@ class Application:
         log.warning("Starting MiAirX application...")
         
         # Create shared HTTP session
+        # Use explicit TCPConnector with IPv4-only to avoid IPv6 issues
+        # on some networks. Increased timeouts for MiNA API which can be slow.
+        connector = aiohttp.TCPConnector(family=socket.AF_INET, ttl_dns_cache=300)
         self.session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=15, connect=5, sock_read=10)
+            connector=connector,
+            timeout=aiohttp.ClientTimeout(total=30, connect=10, sock_read=20),
         )
         
         # Initialize authentication

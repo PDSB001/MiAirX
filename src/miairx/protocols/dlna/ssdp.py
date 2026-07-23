@@ -73,8 +73,13 @@ class SsdpServer:
         return f"http://{self.hostname}:{self.dlna_port}/device/{udn}/description.xml"
 
     def _get_search_targets(self, udn: str) -> list[tuple[str, str]]:
-        """Get all ST/USN pairs to advertise."""
-        uuid_str = f"uuid:{udn}"
+        """Get all ST/USN pairs to advertise.
+
+        Note: udn may already contain 'uuid:' prefix (e.g. from SpeakerConfig
+        or HTTP server routing). Strip it to avoid double-prefixing the USN.
+        """
+        bare = udn[6:] if udn.startswith("uuid:") else udn
+        uuid_str = f"uuid:{bare}"
         return [
             ("upnp:rootdevice", f"{uuid_str}::upnp:rootdevice"),
             (uuid_str, uuid_str),

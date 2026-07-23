@@ -132,9 +132,40 @@ class SsdpServer:
         )
         return notify.encode("utf-8")
 
+    def _resolve_bind_ip(self) -> str:
+        """Return the LAN IP to bind the SSDP socket to.
+
+        Uses the configured hostname if it's a real IP, otherwise falls
+        back to INADDR_ANY. Binding to a specific IP is critical in
+        Docker/container environments where 0.0.0.0 has no multicast route.
+        """
+        if self.hostname and self.hostname not in ("", "0.0.0.0"):
+            try:
+                socket.inet_aton(self.hostname)
+                return self.hostname
+            except OSError:
+                pass
+        return SsdpServer._detect_local_ip()
+
+    @staticmethod
+    def _detect_local_ip() -> str:
+        """Detect the LAN IP by connecting to an external address."""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect(("8.8.8.8", 80))
+                return s.getsockname()[0]
+        except OSError:
+            return "0.0.0.0"
+
     async def start(self):
         """Start SSDP server."""
         loop = asyncio.get_running_loop()
+
+        # Resolve LAN IP for multicast binding. Using the actual IP
+        # instead of INADDR_ANY fixes multicast routing in Docker and
+        # some Linux configurations where 0.0.0.0 doesn't have a route
+        # to 239.255.255.250.
+        lan_ip = self._resolve_bind_ip()
 
         # Create UDP socket
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -147,13 +178,20 @@ class SsdpServer:
             except (AttributeError, OSError):
                 pass
 
-        self._sock.bind(("", SSDP_PORT))
+        # Bind to the specific LAN IP so multicast has a known route
+        self._sock.bind((lan_ip, SSDP_PORT))
 
-        # Join multicast group
+        # Tell kernel which interface to use for outgoing multicast
+        self._sock.setsockopt(
+            socket.IPPROTO_IP, socket.IP_MULTICAST_IF,
+            socket.inet_aton(lan_ip),
+        )
+
+        # Join multicast group on the correct interface
         mreq = struct.pack(
             "4s4s",
             socket.inet_aton(SSDP_ADDR),
-            socket.inet_aton("0.0.0.0"),
+            socket.inet_aton(lan_ip),
         )
         self._sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         self._sock.setblocking(False)

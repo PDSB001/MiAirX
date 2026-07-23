@@ -225,18 +225,21 @@ class DlnaRenderer:
             if not self.speaker:
                 self.transport_state = TRANSPORT_STATE_PAUSED
                 return True
-            success = await self.speaker.pause()
-            if success:
-                if self._play_start_time > 0:
-                    self._accumulated_time += time.time() - self._play_start_time
-                    self._play_start_time = 0.0
-                self.transport_state = TRANSPORT_STATE_PAUSED
-                self._user_stopped = True
-                self._stuck_paused_since = time.time()
-                if self._play_check_task:
-                    self._play_check_task.cancel()
-                    self._play_check_task = None
-                log.info(f"[{self.friendly_name}] 已暂停")
+            try:
+                success = await self.speaker.pause()
+            except Exception as e:
+                log.warning(f"[{self.friendly_name}] pause API 超时，本地标记为暂停: {e}")
+                success = True
+            if self._play_start_time > 0:
+                self._accumulated_time += time.time() - self._play_start_time
+                self._play_start_time = 0.0
+            self.transport_state = TRANSPORT_STATE_PAUSED
+            self._user_stopped = True
+            self._stuck_paused_since = time.time()
+            if self._play_check_task:
+                self._play_check_task.cancel()
+                self._play_check_task = None
+            log.info(f"[{self.friendly_name}] 已暂停")
         await self.notify_state_change()
         return success
 
@@ -250,16 +253,19 @@ class DlnaRenderer:
             if not self.speaker:
                 self.transport_state = TRANSPORT_STATE_STOPPED
                 return True
-            success = await self.speaker.stop()
-            if success:
-                self.transport_state = TRANSPORT_STATE_STOPPED
-                self._accumulated_time = 0.0
-                self._play_start_time = 0.0
-                self._user_stopped = True
-                if self._play_check_task:
-                    self._play_check_task.cancel()
-                    self._play_check_task = None
-                log.info(f"[{self.friendly_name}] 已停止")
+            try:
+                success = await self.speaker.stop()
+            except Exception as e:
+                log.warning(f"[{self.friendly_name}] stop API 超时，本地标记为停止: {e}")
+                success = True
+            self.transport_state = TRANSPORT_STATE_STOPPED
+            self._accumulated_time = 0.0
+            self._play_start_time = 0.0
+            self._user_stopped = True
+            if self._play_check_task:
+                self._play_check_task.cancel()
+                self._play_check_task = None
+            log.info(f"[{self.friendly_name}] 已停止")
         await self.notify_state_change()
         return success
 

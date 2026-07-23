@@ -219,7 +219,7 @@ class SoapHandler:
             return soap_response(
                 CONNECTION_MANAGER_URN,
                 action,
-                {"Source": "", "Sink": },
+                {"Source": "", "Sink":SUPPORTED_PROTOCOLS },
             ), 200
 
         elif action == "GetCurrentConnectionIDs":

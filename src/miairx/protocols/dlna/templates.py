@@ -26,11 +26,10 @@ def device_description_xml(udn: str, friendly_name: str, manufacturer: str = "Mi
     <deviceType>{DEVICE_TYPE}</deviceType>
     <friendlyName>{escape(friendly_name)}</friendlyName>
     <manufacturer>{manufacturer}</manufacturer>
-    <manufacturerURL>https://github.com/PDSB001/MiAirX</manufacturerURL>
+    <manufacturerURL>https://github.com/user/miairx</manufacturerURL>
     <modelDescription>MiAirX - Xiaomi Speaker DLNA Audio Renderer</modelDescription>
     <modelName>MiAirX Speaker</modelName>
     <modelNumber>1.0</modelNumber>
-    <modelURL>https://github.com/PDSB001/MiAirX</modelURL>
     <serialNumber>1</serialNumber>
     <UDN>{udn}</UDN>
     <dlna:X_DLNADOC>DMR-1.50</dlna:X_DLNADOC>

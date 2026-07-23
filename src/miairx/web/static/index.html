@@ -529,10 +529,6 @@ body::after {
             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             <span>设置</span>
         </div>
-        <div class="nav-item" onclick="openLoginModal()">
-            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <span>账号</span>
-        </div>
 
         <div class="sidebar-footer">
             <a href="https://github.com/PDSB001/MiAirX" target="_blank">MiAirX</a>
@@ -575,7 +571,7 @@ body::after {
             <div class="page-sub">账号与高级选项</div>
 
             <div class="section">
-                <span class="section-title">账号与网络</span>
+                <span class="section-title">账号登录</span>
                 <div class="form-group">
                     <label class="form-label">小米账号</label>
                     <input type="text" class="form-input" id="account" placeholder="小米账号">
@@ -584,6 +580,20 @@ body::after {
                     <label class="form-label">密码</label>
                     <input type="password" class="form-input" id="password" placeholder="留空则不修改">
                 </div>
+                <div style="display:flex;gap:12px;">
+                    <div class="form-group" style="flex:1;">
+                        <label class="form-label">userId（Cookie）</label>
+                        <input type="text" class="form-input" id="cookie-userid" placeholder="可选，Cookie 登录">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label class="form-label">passToken（Cookie）</label>
+                        <input type="text" class="form-input" id="cookie-passtoken" placeholder="可选，Cookie 登录">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <span class="section-title">网络</span>
                 <div class="form-group">
                     <label class="form-label">主机名 / IP</label>
                     <input type="text" class="form-input" id="hostname" placeholder="自动检测">
@@ -651,25 +661,6 @@ body::after {
     </div>
 </div>
 
-<!-- login modal -->
-<div class="modal-overlay" id="modal-login">
-    <div class="modal">
-        <div class="modal-title">🔑 小米账号登录</div>
-        <div class="modal-desc">输入小米账号页面的 Cookie 令牌以登录设备。</div>
-        <div class="form-group">
-            <label class="form-label">userId</label>
-            <input type="text" class="form-input" id="login-userid" placeholder="从浏览器 Cookie 获取">
-        </div>
-        <div class="form-group">
-            <label class="form-label">passToken</label>
-            <input type="text" class="form-input" id="login-passtoken" placeholder="从浏览器 Cookie 获取">
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeLoginModal()">取消</button>
-            <button class="btn btn-primary" id="btn-login-confirm" onclick="loginXiaomi()">登录</button>
-        </div>
-    </div>
-</div>
 
 <script>
 const POLL_DEVICES_MS = 30000;
@@ -735,6 +726,12 @@ async function loadConfig() {
         document.getElementById("proxy_enabled").checked = !!config.proxy_enabled;
         document.getElementById("enable_voice_control").checked = !!config.enable_voice_control;
         document.getElementById("follow_device_volume").checked = !!config.follow_device_volume;
+        // Parse cookie back into individual fields
+        const cookie = config.cookie || "";
+        const uidMatch = cookie.match(/userId=([^;]*)/);
+        const tokMatch = cookie.match(/passToken=([^;]*)/);
+        document.getElementById("cookie-userid").value = uidMatch ? uidMatch[1] : "";
+        document.getElementById("cookie-passtoken").value = tokMatch ? tokMatch[1] : "";
     } catch (e) { console.warn("加载配置失败：", e.message); }
 }
 
@@ -744,20 +741,26 @@ async function saveConfig() {
     btn.disabled = true;
     showTip(tip, "正在保存...", "success", 0);
     try {
+        const cookieUid = document.getElementById("cookie-userid").value.trim();
+        const cookieTok = document.getElementById("cookie-passtoken").value.trim();
+        const body = {
+            account: document.getElementById("account").value,
+            password: document.getElementById("password").value,
+            hostname: document.getElementById("hostname").value,
+            dlna_port: parseInt(document.getElementById("dlna_port").value, 10),
+            web_port: parseInt(document.getElementById("web_port").value, 10),
+            auto_play_on_set_uri: document.getElementById("auto_play_on_set_uri").checked,
+            auto_resume_on_interrupt: document.getElementById("auto_resume_on_interrupt").checked,
+            proxy_enabled: document.getElementById("proxy_enabled").checked,
+            enable_voice_control: document.getElementById("enable_voice_control").checked,
+            follow_device_volume: document.getElementById("follow_device_volume").checked,
+        };
+        if (cookieUid && cookieTok) {
+            body.cookie = `userId=${cookieUid}; passToken=${cookieTok}`;
+        }
         const res = await api("/api/config", {
             method: "POST",
-            body: JSON.stringify({
-                account: document.getElementById("account").value,
-                password: document.getElementById("password").value,
-                hostname: document.getElementById("hostname").value,
-                dlna_port: parseInt(document.getElementById("dlna_port").value, 10),
-                web_port: parseInt(document.getElementById("web_port").value, 10),
-                auto_play_on_set_uri: document.getElementById("auto_play_on_set_uri").checked,
-                auto_resume_on_interrupt: document.getElementById("auto_resume_on_interrupt").checked,
-                proxy_enabled: document.getElementById("proxy_enabled").checked,
-                enable_voice_control: document.getElementById("enable_voice_control").checked,
-                follow_device_volume: document.getElementById("follow_device_volume").checked,
-            }),
+            body: JSON.stringify(body),
         });
         if (res && res.success === false) throw new Error(res.error || "保存失败");
         showTip(tip, "✅ 已保存，应用重启中...", "success");
@@ -979,48 +982,9 @@ document.getElementById("modal-play").addEventListener("click", e => {
     if (e.target.id === "modal-play") closePlayModal();
 });
 
-// ========== Login Modal ==========
-function openLoginModal() {
-    document.getElementById("login-userid").value = "";
-    document.getElementById("login-passtoken").value = "";
-    document.getElementById("modal-login").classList.add("active");
-    document.getElementById("login-userid").focus();
-}
-function closeLoginModal() {
-    document.getElementById("modal-login").classList.remove("active");
-}
-async function loginXiaomi() {
-    const userId = document.getElementById("login-userid").value.trim();
-    const passToken = document.getElementById("login-passtoken").value.trim();
-    if (!userId || !passToken) {
-        showTip(document.getElementById("tip-config"), "❌ userId 和 passToken 不能为空", "error");
-        return;
-    }
-    const btn = document.getElementById("btn-login-confirm");
-    const tip = document.getElementById("tip-devices");
-    btn.disabled = true;
-    showTip(tip, "正在登录...", "success", 0);
-    try {
-        await api("/api/config", {
-            method: "POST",
-            body: JSON.stringify({ cookie: `userId=${userId}; passToken=${passToken}` }),
-        });
-        showTip(tip, "✅ 登录成功，服务重启中...", "success");
-        closeLoginModal();
-        setTimeout(() => location.reload(), 3000);
-    } catch (e) {
-        showTip(tip, "❌ 登录失败：" + e.message, "error");
-    } finally {
-        btn.disabled = false;
-    }
-}
-document.getElementById("modal-login").addEventListener("click", e => {
-    if (e.target.id === "modal-login") closeLoginModal();
-});
 document.addEventListener("keydown", e => {
     if (e.key === "Escape") {
         if (document.getElementById("modal-play").classList.contains("active")) closePlayModal();
-        if (document.getElementById("modal-login").classList.contains("active")) closeLoginModal();
     }
     if (e.key === "Enter" && document.getElementById("modal-play").classList.contains("active")) confirmPlay();
 });

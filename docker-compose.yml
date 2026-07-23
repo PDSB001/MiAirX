@@ -1,0 +1,18 @@
+# Linux 用户：复制此文件并编辑环境变量，然后 docker compose up -d
+# Windows/macOS：不建议用 Docker，SSDP 组播无法穿透 VM 网络
+
+services:
+  miairx:
+    image: ghcr.io/pdsb001/miairx:master
+    container_name: miairx
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - MI_USER=你的小米账号          # 必填
+      - MI_PASS=你的小米密码          # 必填
+      - MI_DID=音箱的DID              # 可选，启动后去 Web UI 填
+      - MIAIR_HOSTNAME=               # 可选，留空自动检测
+      - MIAIR_DLNA_PORT=8200
+      - MIAIR_WEB_PORT=8300
+    volumes:
+      - ./conf:/app/conf

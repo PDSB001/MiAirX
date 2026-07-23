@@ -66,21 +66,25 @@ QQ音乐 ──DLNA──▶  MiAirX  ──MiNA API──▶  小爱音箱
 
 ### 三种安装方式
 
-#### 方式一：Docker（最省心）
+#### 方式一：Docker（仅 Linux）
 
 ```bash
+mkdir -p conf
 docker run -d --name miairx \
   --network host \
+  -e MI_USER=你的小米账号 \
+  -e MI_PASS=你的密码 \
   -v $(pwd)/conf:/app/conf \
   ghcr.io/pdsb001/miairx:master
 ```
 
-> `--network host` 让 Docker 共享主机网络，避免 DLNA 组播问题。
+> Windows/macOS 不建议用 Docker（组播不通），请用方式二或三。
 
 #### 方式二：pip 安装
 
 ```bash
 pip install aiohttp miservice-fork zeroconf pycryptodome structlog pydantic pydantic-settings
+python -m miairx
 ```
 
 #### 方式三：源码安装
@@ -89,11 +93,14 @@ pip install aiohttp miservice-fork zeroconf pycryptodome structlog pydantic pyda
 git clone https://github.com/PDSB001/MiAirX.git
 cd MiAirX
 pip install -e .
+python start.py
 ```
 
 ---
 
-### 配置 `conf/config.json`
+### 配置
+
+如果不通过环境变量传入，需编辑 `conf/config.json`：
 
 ```json
 {
@@ -104,31 +111,32 @@ pip install -e .
 }
 ```
 
-| 字段 | 说明 |
-|------|------|
-| `account` | 小米账号（手机号/邮箱） |
-| `password` | 小米密码 |
-| `mi_did` | 音箱设备 ID，**强烈建议先填一个占位** |
-| `hostname` | 电脑在局域网中的 IP（**留空自动检测**） |
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `account` | ✅ | 小米账号（手机号/邮箱） |
+| `password` | ✅ | 小米密码 |
+| `mi_did` | 建议 | 音箱设备 ID，**可以先不填** |
+| `hostname` | ❌ | 电脑 LAN IP，**留空自动检测** |
 
-> 💡 **不知道 DID？** 把 `mi_did` 留空或随便填一个，启动后打开 Web 界面 → 设备管理 → 复制你要用那台的 DID → 改配置重启。
+> 💡 **不知道 DID？** 把 `mi_did` 留空，启动后开 Web 界面 → 设备管理 → 复制 DID → 改配置重启。
 
 ---
 
 ### 启动
 
 ```bash
-# 方式 A：Windows 一键
+# Windows 一键
 start.bat
 
-# 方式 B：Python 一键
+# Python 一键
 python start.py
 
-# 方式 C：模块模式（推荐用于调试）
+# 模块模式（推荐调试用）
 python -m miairx --debug
 ```
 
 启动成功后会看到：
+
 ```
 INFO  MiAirX v1.0.0
 INFO  Hostname: 192.168.1.172
@@ -142,21 +150,24 @@ INFO  Speakers registered: 小爱音箱Play增强版 (L05C)
 ### 投！
 
 #### 📱 QQ 音乐
-1. 打开 QQ 音乐 → 选歌 → 播放界面右上角 **···** → **投屏**
-2. 在设备列表里点 **XiaoAI L05C**
+
+1. 选歌 → 播放界面右上角 ··· → 投屏
+2. 点 **XiaoAI L05C**
 3. 音箱出声
 
 #### 🎵 网易云音乐
-1. 打开网易云 → 选歌 → 播放界面 **分享** → **投屏到设备**
+
+1. 选歌 → 播放界面 → 分享 → 投屏到设备
 2. 选 **XiaoAI L05C**
 3. 音箱出声
 
 #### 🍎 iOS
-1. 从控制中心拉出 **隔空播放**（AirPlay）
-2. 选 **XiaoAI L05C**
-3. 任何 App 的音频都会路由到音箱
 
-> 💡 设备名可能显示为 `XiaoAI L05C (xxxxxxx)`（硬件型号 + DID），取决于你的网络环境。
+1. 控制中心 → 隔空播放
+2. 选 **XiaoAI L05C**
+3. 任意 App 音频都会路由到音箱
+
+> 💡 设备名格式：`XiaoAI L05C (663160981)`（硬件型号 + DID）
 
 ---
 
@@ -166,17 +177,10 @@ INFO  Speakers registered: 小爱音箱Play增强版 (L05C)
 
 | 标签 | 功能 |
 |------|------|
-| **📊 状态** | 服务运行状态、网络信息、音箱在线情况 |
-| **🎵 媒体控制** | 当前播放曲目、播放/暂停/停止、音量、进度跳转 |
-| **📱 设备管理** | 已发现的小米音箱列表、启用/禁用、复制 DID |
-| **⚙️ 设置** | 查看/修改配置、重启服务 |
-
-| 操作 | 方法 |
-|------|------|
-| 复制 DID | 设备管理 → 音箱卡片 → 点 DID |
-| 切换音箱 | 设备管理 → 点击要启用的音箱 |
-| 调整音量 | 媒体控制 → 拖动音量条 |
-| 跳转进度 | 媒体控制 → 拖动进度条 |
+| 状态 | 服务运行状态、网络信息、音箱在线 |
+| 媒体控制 | 播放/暂停/停止、音量、进度跳转 |
+| 设备管理 | 已发现音箱、启用/禁用、复制 DID |
+| 设置 | 配置修改、重启服务 |
 
 ---
 
@@ -184,49 +188,53 @@ INFO  Speakers registered: 小爱音箱Play增强版 (L05C)
 
 ```
 MiAirX/
-├── start.py                 # 一键启动
-├── start.bat                # Windows 启动
-├── Dockerfile               # Docker 部署
-├── conf/                    # 配置目录
-│   └── config.json
+├── start.py / start.bat       # 启动入口
+├── docker-compose.yml         # Docker 编排
+├── Dockerfile
+├── conf/config.json           # 配置文件
 ├── src/miairx/
-│   ├── cli.py               # CLI 入口
-│   ├── app.py               # 核心编排器
-│   ├── const.py             # DLNA 常量
-│   ├── auth/                # 小米账号认证
-│   ├── config/              # 配置管理
-│   ├── core/                # 基础设施
-│   ├── media/               # 音频处理 & 代理
-│   ├── speaker/             # 音箱控制
+│   ├── cli.py                 # CLI
+│   ├── app.py                 # 核心编排
+│   ├── const.py               # DLNA 常量
+│   ├── auth/                  # 小米账号认证
+│   ├── config/                # 配置管理
+│   ├── core/                  # 基础设施
+│   ├── media/                 # 音频代理 & 转码
+│   ├── speaker/               # 音箱控制
 │   ├── protocols/
-│   │   ├── dlna/            # DLNA/UPnP 协议
-│   │   └── airplay/         # AirPlay 协议
-│   └── web/                 # Web 管理界面
-└── tests/                   # 测试
+│   │   ├── dlna/              # DLNA/UPnP
+│   │   └── airplay/           # AirPlay
+│   └── web/                   # Web 管理 UI
+└── tests/
 ```
 
 ---
 
 ## 🐳 Docker
 
-> ⚠️ **SSDP 组播在网桥模式下不可用**。Docker 桥接网络无法传递 UDP 组播包（`239.255.255.250:1900`），这意味着 **客户端搜不到设备**。
+> ⚠️ DLNA 依赖 UDP 组播，**网桥下客户端搜不到设备**。Docker 仅限 Linux + `--network host`。
 
-#### ✅ 可以工作的方式
+**docker-compose（推荐）**
 
-| 平台 | 方式 |
-|------|------|
-| **Linux** | `docker run --network host`，容器直接共用宿主机网络栈 |
-| **Windows / macOS** | **不建议用 Docker**，组播无法穿透 VM 网络层，请用原生 Python |
+编辑 `docker-compose.yml` 填入账号密码，然后：
 
 ```bash
-# 仅 Linux 可用 —— 组播在 bridge 模式下不通
+mkdir -p conf
+docker compose up -d
+```
+
+**docker run**
+
+```bash
 docker run -d --name miairx \
   --network host \
+  -e MI_USER=你的小米账号 \
+  -e MI_PASS=你的密码 \
   -v $(pwd)/conf:/app/conf \
   ghcr.io/pdsb001/miairx:master
 ```
 
-> 🔧 Windows 用户直接用 `start.bat` 或 `python start.py`，稳定可靠。
+启动后打开 `http://你的Linux IP:8300` → 设备管理 → 选音箱即可。
 
 ---
 
@@ -236,7 +244,7 @@ docker run -d --name miairx \
 |------|------|
 | [miservice-fork](https://github.com/KiriChen-Wind/miservice-fork) | 小米云 API |
 | aiohttp | 异步 HTTP |
-| zeroconf | AirPlay mDNS 广播 |
+| zeroconf | AirPlay mDNS |
 | pycryptodome | AirPlay 加密 |
 | structlog | 结构化日志 |
 | pydantic | 配置验证 |
@@ -248,23 +256,24 @@ docker run -d --name miairx \
 <details>
 <summary><b>Q: 投屏列表里看不到音箱？</b></summary>
 
-- 确认电脑和音箱**同一 Wi-Fi**
-- 确认 Windows 防火墙放行了 1900(UDP)、8200(TCP)、8300(TCP)
-- 尝试关闭 VPN/代理
+- 电脑和音箱**同一 Wi-Fi**
+- 防火墙放行 1900(UDP)、8200(TCP)、8300(TCP)
+- 关闭 VPN/代理试试
+- Docker 用户确认用了 `--network host`
 </details>
 
 <details>
 <summary><b>Q: 播放了但没有声音？</b></summary>
 
 - 检查音箱音量
-- 检查 Web UI 中音箱是否已启用（设备管理 → 确保勾选）
-- 查看控制台日志中的错误信息
+- Web UI 设备管理确认音箱已启用
+- 看控制台日志中的错误
 </details>
 
 <details>
 <summary><b>Q: 进度条不准确？</b></summary>
 
-部分客户端（如网易云音乐）不轮询进度接口，而是依赖 UPnP 事件推送。这在 FAQ 中是已知的限制。
+网易云音乐等客户端不轮询进度，依赖 UPnP 事件推送。已知限制。
 </details>
 
 ---
@@ -280,7 +289,7 @@ pytest --cov=src
 
 ## 🙏 致谢
 
-核心 DLNA 状态机及 MiNA API 桥接逻辑源自 [MiAir](https://github.com/KiriChen-Wind/MiAir)，感谢原作者 **KiriChen-Wind** 的开创性工作。
+核心 DLNA 状态机及 MiNA API 桥接逻辑源自 [MiAir](https://github.com/KiriChen-Wind/MiAir)，感谢 **KiriChen-Wind**。
 
 ---
 

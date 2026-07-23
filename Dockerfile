@@ -6,7 +6,7 @@ WORKDIR /build
 # Install build deps
 RUN pip install --no-cache-dir build
 
-COPY pyproject.toml .
+COPY pyproject.toml README.md .
 COPY src/ src/
 
 # Build wheel

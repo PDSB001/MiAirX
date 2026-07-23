@@ -209,16 +209,24 @@ MiAirX/
 
 ## 🐳 Docker
 
-```bash
-# 直接拉 GitHub 自动编译的镜像
-docker pull ghcr.io/pdsb001/miairx:master
+> ⚠️ **SSDP 组播在网桥模式下不可用**。Docker 桥接网络无法传递 UDP 组播包（`239.255.255.250:1900`），这意味着 **客户端搜不到设备**。
 
-docker run -p 8200:8200 -p 8300:8300 \
+#### ✅ 可以工作的方式
+
+| 平台 | 方式 |
+|------|------|
+| **Linux** | `docker run --network host`，容器直接共用宿主机网络栈 |
+| **Windows / macOS** | **不建议用 Docker**，组播无法穿透 VM 网络层，请用原生 Python |
+
+```bash
+# 仅 Linux 可用 —— 组播在 bridge 模式下不通
+docker run -d --name miairx \
+  --network host \
   -v $(pwd)/conf:/app/conf \
   ghcr.io/pdsb001/miairx:master
 ```
 
-> 每次 push 到 master，GitHub Actions 自动构建 amd64 + arm64 镜像并推送到 ghcr.io。
+> 🔧 Windows 用户直接用 `start.bat` 或 `python start.py`，稳定可靠。
 
 ---
 

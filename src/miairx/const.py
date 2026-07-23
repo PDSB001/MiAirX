@@ -52,24 +52,24 @@ NEED_USE_PLAY_MUSIC_API = [
 DEFAULT_AUDIO_ID = "448161862632079419"
 
 # Supported protocols (ConnectionManager GetProtocolInfo) - audio only
-SUPPORTED_PROTOCOLS = (
-    "http-get:*:audio/mpeg:*,"
-    "http-get:*:audio/mp3:*,"
-    "http-get:*:audio/mp4:*,"
-    "http-get:*:audio/ogg:*,"
-    "http-get:*:audio/flac:*,"
-    "http-get:*:audio/x-flac:*,"
-    "http-get:*:audio/wav:*,"
-    "http-get:*:audio/x-wav:*,"
-    "http-get:*:audio/aac:*,"
-    "http-get:*:audio/x-aac:*,"
-    "http-get:*:audio/x-m4a:*,"
-    "http-get:*:audio/x-ms-wma:*,"
-    "http-get:*:audio/L16:*,"
-    "http-get:*:audio/vnd.dlna.adts:*,"
-    "http-get:*:audio/ape:*,"
-    "http-get:*:audio/*:*"
-)
+SUPPORTED_PROTOCOLS = ",".join([
+    "http-get:*:audio/mpeg:*",
+    "http-get:*:audio/mp3:*",
+    "http-get:*:audio/mp4:*",
+    "http-get:*:audio/ogg:*",
+    "http-get:*:audio/flac:*",
+    "http-get:*:audio/x-flac:*",
+    "http-get:*:audio/wav:*",
+    "http-get:*:audio/x-wav:*",
+    "http-get:*:audio/aac:*",
+    "http-get:*:audio/x-aac:*",
+    "http-get:*:audio/x-m4a:*",
+    "http-get:*:audio/x-ms-wma:*",
+    "http-get:*:audio/L16:*",
+    "http-get:*:audio/vnd.dlna.adts:*",
+    "http-get:*:audio/ape:*",
+    "http-get:*:audio/*:*",
+])
 
 # Xiaomi conversation history API (for voice control)
 LATEST_ASK_API = (

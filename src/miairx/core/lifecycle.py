@@ -70,7 +70,7 @@ class LifecycleManager:
 
                 win32api.SetConsoleCtrlHandler(handler, True)
             except ImportError:
-                log.warning("win32api not available, using KeyboardInterrupt for shutdown")
+                log.info("win32api not available, using KeyboardInterrupt for shutdown")
         else:
             # Unix-like systems
             loop = asyncio.get_running_loop()

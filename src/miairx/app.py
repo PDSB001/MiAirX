@@ -304,7 +304,7 @@ class Application:
         await self.web_runner.setup()
         
         # Start web server
-        site = web.TCPSite(self.web_runner, self.config.hostname, self.config.web_port)
+        site = web.TCPSite(self.web_runner, "0.0.0.0", self.config.web_port)
         await site.start()
         
         log.warning(f"Web management interface started on http://{self.config.hostname}:{self.config.web_port}")

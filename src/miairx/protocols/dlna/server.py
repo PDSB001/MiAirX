@@ -316,7 +316,7 @@ class DlnaHttpServer:
 
         self._runner = web.AppRunner(app)
         await self._runner.setup()
-        self._site = web.TCPSite(self._runner, self.hostname, self.dlna_port)
+        self._site = web.TCPSite(self._runner, "0.0.0.0", self.dlna_port)
         await self._site.start()
 
         # Start buffer GC

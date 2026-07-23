@@ -25,8 +25,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install pre-built wheel
-COPY --from=builder /build/dist/*.whl /tmp/
-RUN pip install --no-cache-dir /tmp/*.whl && rm /tmp/*.whl
+COPY --from=builder /build/dist /tmp/dist
+RUN pip install --no-cache-dir /tmp/dist/*.whl && rm -rf /tmp/dist
 
 # Volume for persistent config
 RUN mkdir -p /app/conf

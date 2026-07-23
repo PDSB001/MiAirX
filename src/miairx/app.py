@@ -80,7 +80,7 @@ async def _poll_one_renderer(app, udn: str, renderer: DlnaRenderer) -> None:
 
     try:
         speaker_status = await asyncio.wait_for(
-            renderer.speaker.get_status(), timeout=10
+            renderer.speaker.get_status(), timeout=30
         )
     except Exception as e:
         log.warning(f"[{renderer.friendly_name}] Poll failed: {e}")

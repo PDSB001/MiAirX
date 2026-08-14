@@ -40,6 +40,7 @@ def create_web_app(config: "AppConfig", app: "Application", config_store: Config
     
     # Setup routes
     web_app.router.add_get("/", handle_index)
+    web_app.router.add_get("/favicon.ico", handle_favicon)
     web_app.router.add_get("/api/status", handle_status)
     web_app.router.add_get("/api/config", handle_get_config)
     web_app.router.add_post("/api/config", handle_save_config)
@@ -59,6 +60,11 @@ def create_web_app(config: "AppConfig", app: "Application", config_store: Config
 async def handle_index(request: web.Request) -> web.Response:
     """Handle index page."""
     return web.FileResponse(STATIC_DIR / "index.html")
+
+
+async def handle_favicon(request: web.Request) -> web.Response:
+    """Serve the MiAirX logo for legacy favicon requests."""
+    return web.FileResponse(STATIC_DIR / "logo.png")
 
 
 async def handle_status(request: web.Request) -> web.Response:

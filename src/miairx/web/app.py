@@ -6,6 +6,7 @@ from pathlib import Path
 
 from aiohttp import web
 
+from miairx import __version__
 from miairx.config.models import AppConfig
 from miairx.config.store import ConfigStore
 
@@ -62,7 +63,7 @@ async def handle_status(request: web.Request) -> web.Response:
     app = request.app["app"]
     
     status = {
-        "version": "1.0.0",
+        "version": __version__,
         "hostname": config.hostname,
         "dlna_port": config.dlna_port,
         "web_port": config.web_port,

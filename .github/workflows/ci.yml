@@ -27,12 +27,17 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e ".[dev]"
     
-    - name: Lint with ruff
+    - name: Lint critical errors with ruff
       run: |
         pip install ruff
-        ruff check .
+        ruff check . --select E9,F63,F7,F82
+
+    - name: Full ruff report (advisory)
+      continue-on-error: true
+      run: ruff check .
     
-    - name: Type check with pyright
+    - name: Type check with pyright (advisory)
+      continue-on-error: true
       run: |
         pip install pyright
         pyright

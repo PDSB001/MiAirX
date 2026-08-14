@@ -3,12 +3,16 @@
 import json
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from aiohttp import web
 
 from miairx import __version__
 from miairx.config.models import AppConfig
 from miairx.config.store import ConfigStore
+
+if TYPE_CHECKING:
+    from miairx.app import Application
 
 log = logging.getLogger(__name__)
 

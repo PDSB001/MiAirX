@@ -22,7 +22,12 @@ echo ------------------------------------------------------------
 echo.
 
 set PYTHONPATH=src
-python -m miairx
+where py >nul 2>nul
+if %errorlevel% equ 0 (
+    py -3 -m miairx
+) else (
+    python -m miairx
+)
 
 if errorlevel 1 (
     echo.

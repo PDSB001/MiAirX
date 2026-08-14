@@ -82,14 +82,21 @@ class SoapHandler:
         """
         log.info(f"[{renderer.friendly_name}] SOAP: {action} params={params}")
 
-        if service_urn == AVTRANSPORT_URN:
-            return await SoapHandler._handle_avtransport(renderer, action, params)
-        elif service_urn == RENDERING_CONTROL_URN:
-            return await SoapHandler._handle_rendering_control(renderer, action, params)
-        elif service_urn == CONNECTION_MANAGER_URN:
-            return SoapHandler._handle_connection_manager(action, params)
-        else:
+        try:
+            if service_urn == AVTRANSPORT_URN:
+                return await SoapHandler._handle_avtransport(renderer, action, params)
+            elif service_urn == RENDERING_CONTROL_URN:
+                return await SoapHandler._handle_rendering_control(renderer, action, params)
+            elif service_urn == CONNECTION_MANAGER_URN:
+                return SoapHandler._handle_connection_manager(action, params)
             return soap_fault(UPNP_ERROR_INVALID_ACTION, "Invalid Service"), 500
+        except Exception as e:
+            # Keep device/cloud failures inside the UPnP protocol boundary.
+            # Otherwise aiohttp emits a traceback and the controller receives
+            # a generic broken HTTP response rather than a valid SOAP fault.
+            message = str(e).replace("\n", " ")[:240]
+            log.warning(f"[{renderer.friendly_name}] SOAP {action} failed: {message}")
+            return soap_fault(UPNP_ERROR_ACTION_FAILED, "Action failed"), 500
 
     @staticmethod
     async def _handle_avtransport(

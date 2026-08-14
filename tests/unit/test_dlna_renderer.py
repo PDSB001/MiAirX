@@ -59,6 +59,38 @@ async def test_set_av_transport_uri(renderer):
 
 
 @pytest.mark.asyncio
+async def test_set_uri_cancels_stale_auto_next(renderer, mock_speaker):
+    """A previous track's delayed task must not stop the new track."""
+    await renderer.set_av_transport_uri("http://example.com/old.mp3")
+
+    async def delayed_stop():
+        await asyncio.sleep(60)
+        await mock_speaker.stop()
+
+    stale_task = asyncio.create_task(delayed_stop())
+    renderer._auto_next_task = stale_task
+    await asyncio.sleep(0)
+
+    await renderer.set_av_transport_uri("http://example.com/new.mp3")
+    await asyncio.sleep(0)
+
+    assert stale_task.cancelled()
+    mock_speaker.stop.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_stale_auto_next_generation_is_ignored(renderer, mock_speaker):
+    """The generation guard prevents stale tasks from changing playback."""
+    await renderer.set_av_transport_uri("http://example.com/current.mp3")
+    stale_generation = renderer._media_generation - 1
+
+    await renderer.next_track(expected_generation=stale_generation)
+
+    assert renderer.current_uri == "http://example.com/current.mp3"
+    mock_speaker.stop.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_set_av_transport_uri_video_rejected(renderer):
     """Test that video files are rejected."""
     result = await renderer.set_av_transport_uri("http://example.com/video.mp4")

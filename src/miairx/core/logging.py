@@ -42,7 +42,11 @@ def setup_logging(verbose: bool = False, log_file: str | None = None) -> None:
 
     # Configure standard logging
     root_logger = logging.getLogger()
-    root_logger.setLevel(console_level)
+    # The logger level is checked before handler levels.  Keeping the root at
+    # WARNING used to discard INFO/DEBUG records before the DEBUG file handler
+    # could see them, which made playback diagnostics disappear from miair.log.
+    root_level = logging.DEBUG if log_file else console_level
+    root_logger.setLevel(root_level)
 
     # Remove existing handlers
     for handler in root_logger.handlers[:]:

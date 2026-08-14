@@ -81,10 +81,18 @@ class DlnaHttpServer:
         # Check if we already have a buffer for this URL
         if remote_url in self._url_to_buffer:
             buffer_id = self._url_to_buffer[remote_url]
-            # O(1) reverse lookup via _buffer_to_token
-            token = self._buffer_to_token.get(buffer_id)
-            if token:
+            if buffer_id in self._media_buffers:
+                # A pre-buffered URL has no token yet. Attach one to the
+                # existing buffer instead of starting a duplicate download.
+                token = self._buffer_to_token.get(buffer_id)
+                if not token:
+                    token = secrets.token_urlsafe(16)
+                    self._buffer_to_token[buffer_id] = token
+                    self._proxy_tokens[token] = (buffer_id, udn)
                 return f"http://{self.hostname}:{self.dlna_port}/media/{token}"
+
+            # Drop a stale reverse mapping before creating a fresh buffer.
+            self._url_to_buffer.pop(remote_url, None)
         
         # Create new buffer and token
         buffer_id = secrets.token_urlsafe(16)

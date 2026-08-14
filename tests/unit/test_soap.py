@@ -1,8 +1,11 @@
 """Unit tests for SOAP handler"""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
-from miairx.protocols.dlna.soap import parse_soap_action, parse_soap_body
+from miairx.const import AVTRANSPORT_URN
+from miairx.protocols.dlna.soap import SoapHandler, parse_soap_action, parse_soap_body
 
 
 def test_parse_soap_action():
@@ -52,3 +55,22 @@ def test_parse_soap_body_invalid():
     """Test invalid SOAP body parsing."""
     params = parse_soap_body("invalid xml")
     assert params == {}
+
+
+@pytest.mark.asyncio
+async def test_action_failure_returns_soap_fault():
+    """Device failures should remain valid SOAP responses."""
+    renderer = MagicMock()
+    renderer.friendly_name = "Test Speaker"
+    renderer.play = AsyncMock(side_effect=RuntimeError("cloud timeout"))
+
+    response, status = await SoapHandler.handle_request(
+        renderer,
+        AVTRANSPORT_URN,
+        "Play",
+        {},
+    )
+
+    assert status == 500
+    assert "Fault" in response
+    assert "Action failed" in response

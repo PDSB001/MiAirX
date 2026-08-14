@@ -763,8 +763,7 @@ async function saveConfig() {
             body: JSON.stringify(body),
         });
         if (res && res.success === false) throw new Error(res.error || "保存失败");
-        showTip(tip, "✅ 已保存，应用重启中...", "success");
-        setTimeout(() => location.reload(), 3000);
+        showTip(tip, "✅ 已保存，请手动重启 MiAirX 后生效", "success", 0);
     } catch (e) {
         showTip(tip, "❌ " + e.message, "error");
     } finally { btn.disabled = false; }
@@ -833,8 +832,7 @@ async function applyDevices() {
     showTip(tip, "正在应用...", "success", 0);
     try {
         await api("/api/config", { method: "POST", body: JSON.stringify({ mi_did }) });
-        showTip(tip, "✅ 已应用设备选择，服务重启中...", "success");
-        setTimeout(() => location.reload(), 3000);
+        showTip(tip, "✅ 已应用设备选择，请手动重启 MiAirX 后生效", "success", 0);
     } catch (e) {
         showTip(tip, "❌ " + e.message, "error");
         btn.disabled = false;

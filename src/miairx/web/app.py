@@ -160,7 +160,11 @@ async def handle_save_config(request: web.Request) -> web.Response:
         # Save config to file
         await config_store.save(config)
         
-        return web.json_response({"success": True, "message": "Configuration saved successfully"})
+        return web.json_response({
+            "success": True,
+            "message": "Configuration saved successfully",
+            "restart_required": True,
+        })
         
     except Exception as e:
         log.error(f"Failed to save config: {e}")

@@ -60,6 +60,14 @@ class MediaBuffer:
                 # Download data
                 async for chunk in response.content.iter_chunked(8192):
                     async with self._lock:
+                        if len(self.data) + len(chunk) > self.max_memory:
+                            self.is_error = True
+                            self.error_message = "File too large"
+                            log.warning(
+                                f"File exceeded memory limit while downloading: "
+                                f"{len(self.data) + len(chunk)} > {self.max_memory}"
+                            )
+                            return
                         self.data.extend(chunk)
                         self.last_accessed = time.time()
 
@@ -71,6 +79,11 @@ class MediaBuffer:
             self.is_error = True
             self.error_message = str(e)
             log.error(f"Download failed: {e}")
+        finally:
+            # Wake waiters on both success and failure. Without this, a
+            # download that fails after wait_ready() starts blocks until the
+            # full timeout even though the error is already known.
+            self._complete_event.set()
 
     async def wait_ready(self, timeout: float = 120.0) -> bool:
         """Wait for download to complete.
@@ -83,7 +96,7 @@ class MediaBuffer:
         """
         try:
             await asyncio.wait_for(self._complete_event.wait(), timeout=timeout)
-            return True
+            return self.is_complete and not self.is_error
         except asyncio.TimeoutError:
             return False
 

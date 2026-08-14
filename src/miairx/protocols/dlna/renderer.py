@@ -66,6 +66,8 @@ class DlnaRenderer:
         self.next_uri_metadata: str = ""
 
         self._play_check_task: asyncio.Task | None = None
+        self._auto_next_task: asyncio.Task | None = None
+        self._media_generation: int = 0
         self._play_grace_until: float = 0.0
         self._user_stopped: bool = False
         self._last_control_time: float = 0.0
@@ -98,7 +100,12 @@ class DlnaRenderer:
             log.warning(f"[{self.friendly_name}] 拒绝视频文件: {uri[:80]}...")
             return False
 
+        # A controller may send the next URI while the previous track's
+        # end-of-track task is still waiting. Cancel that stale task before it
+        # can stop the newly selected track.
+        self._cancel_auto_next_task()
         async with self._lock:
+            self._media_generation += 1
             self.current_uri = uri
             self.current_uri_metadata = metadata
             self.transport_state = TRANSPORT_STATE_STOPPED
@@ -125,12 +132,17 @@ class DlnaRenderer:
                     near_end_count += 1
                     if near_end_count >= 2:
                         log.info(f"[{self.friendly_name}] 歌曲即将结束，剩余 {self._track_duration - current_position:.1f} 秒")
-                        asyncio.get_running_loop().create_task(self.next_track())
+                        self._auto_next_task = asyncio.get_running_loop().create_task(
+                            self.next_track(
+                                expected_generation=self._media_generation
+                            )
+                        )
                         break
                 else:
                     near_end_count = 0
 
     async def play(self) -> bool:
+        self._cancel_auto_next_task()
         if self.resume_proxy_func:
             self.resume_proxy_func(self.udn)
 
@@ -218,6 +230,7 @@ class DlnaRenderer:
             log.error(f"[{self.friendly_name}] 应用默认音量失败: {e}")
 
     async def pause(self) -> bool:
+        self._cancel_auto_next_task()
         if self.abort_proxy_func:
             self.abort_proxy_func(self.udn)
 
@@ -244,6 +257,7 @@ class DlnaRenderer:
         return success
 
     async def stop(self) -> bool:
+        self._cancel_auto_next_task()
         if self.abort_proxy_func:
             self.abort_proxy_func(self.udn)
         if self.resume_proxy_func:
@@ -270,6 +284,7 @@ class DlnaRenderer:
         return success
 
     async def reset_to_idle(self):
+        self._cancel_auto_next_task()
         async with self._lock:
             if self.transport_state == TRANSPORT_STATE_NO_MEDIA:
                 return
@@ -351,8 +366,26 @@ class DlnaRenderer:
             return True
         return False
 
-    async def next_track(self):
+    def _cancel_auto_next_task(self) -> None:
+        task = self._auto_next_task
+        if task and task is not asyncio.current_task() and not task.done():
+            task.cancel()
+        self._auto_next_task = None
+
+    def _is_stale_auto_next(self, expected_generation: int | None) -> bool:
+        return (
+            expected_generation is not None
+            and expected_generation != self._media_generation
+        )
+
+    async def next_track(self, expected_generation: int | None = None):
+        if self._is_stale_auto_next(expected_generation):
+            log.info(f"[{self.friendly_name}] 忽略已过期的自动切歌任务")
+            return
+
         if self.next_uri:
+            if self._is_stale_auto_next(expected_generation):
+                return
             if self.abort_proxy_func:
                 self.abort_proxy_func(self.udn)
             if self.speaker:
@@ -362,6 +395,7 @@ class DlnaRenderer:
 
             self.current_uri = self.next_uri
             self.current_uri_metadata = self.next_uri_metadata
+            self._media_generation += 1
             self.next_uri = ""
             self.next_uri_metadata = ""
             self._accumulated_time = 0.0
@@ -399,13 +433,18 @@ class DlnaRenderer:
             while waited < 10:
                 await asyncio.sleep(0.5)
                 waited += 0.5
+                if self._is_stale_auto_next(expected_generation):
+                    log.info(f"[{self.friendly_name}] 新媒体已到达，取消旧曲自动切歌")
+                    return
                 if self.next_uri:
                     break
             if self.next_uri:
                 log.info(f"[{self.friendly_name}] 等待 {waited:.1f}s 后收到下一曲")
-                await self.next_track()
+                await self.next_track(expected_generation=expected_generation)
                 return
 
+            if self._is_stale_auto_next(expected_generation):
+                return
             if self.speaker:
                 await self.speaker.stop()
                 log.info(f"[{self.friendly_name}] 已停止当前播放，模拟自然播完")

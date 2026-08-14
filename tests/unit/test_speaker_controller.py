@@ -131,3 +131,34 @@ async def test_login_retry_decorator():
     assert call_count == 2
     mock_auth.invalidate_session.assert_called_once()
     mock_auth.login.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_transient_error_retry_decorator():
+    """Plain miservice exceptions should be retried once without re-login."""
+    mock_auth = MagicMock()
+    mock_auth.invalidate_session = MagicMock()
+    mock_auth.login = AsyncMock()
+    call_count = 0
+
+    class TestClass:
+        def __init__(self):
+            self.auth = mock_auth
+
+        @with_login_retry
+        async def test_method(self):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise Exception("ubus server internal error")
+            return "success"
+
+    obj = TestClass()
+    with patch("miairx.speaker.retry.asyncio.sleep", new=AsyncMock()) as sleep:
+        result = await obj.test_method()
+
+    assert result == "success"
+    assert call_count == 2
+    sleep.assert_awaited_once_with(0.5)
+    mock_auth.invalidate_session.assert_not_called()
+    mock_auth.login.assert_not_called()

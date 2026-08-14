@@ -84,7 +84,8 @@ async def _poll_one_renderer(app, udn: str, renderer: DlnaRenderer) -> None:
             renderer.speaker.get_status(), timeout=60
         )
     except Exception as e:
-        log.warning(f"[{renderer.friendly_name}] Poll failed: {e}")
+        message = str(e).replace("\n", " ")[:240]
+        log.warning(f"[{renderer.friendly_name}] Poll failed: {message}")
         return
 
     new_state = _STATUS_MAP.get(speaker_status, TRANSPORT_STATE_STOPPED)

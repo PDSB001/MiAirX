@@ -13,6 +13,10 @@ from miairx.speaker.retry import with_login_retry
 log = logging.getLogger(__name__)
 
 
+def _short_error(error: Exception, limit: int = 240) -> str:
+    return str(error).replace("\n", " ")[:limit]
+
+
 class SpeakerStatus:
     """Speaker playback status."""
     
@@ -33,14 +37,22 @@ class SpeakerController:
         self.auth = auth
         self._last_volume: int = 50  # For unmute restore
 
-    @classmethod
-    def _check_and_trigger_restart(cls) -> None:
+    def _check_and_trigger_restart(self) -> None:
         """Check consecutive login failures and trigger restart if threshold reached."""
+        cls = type(self)
         if cls._consecutive_login_failures >= cls._LOGIN_FAILURE_RESTART_THRESHOLD:
+            if not self.auth.config.auto_restart:
+                log.error(
+                    f"Consecutive speaker failures reached {cls._consecutive_login_failures}; "
+                    "auto_restart is disabled, keeping the service running"
+                )
+                cls._consecutive_login_failures = 0
+                return
             log.error(
-                f"Consecutive login failures reached {cls._consecutive_login_failures}, "
-                "triggering restart to recover service..."
+                f"Consecutive speaker failures reached {cls._consecutive_login_failures}, "
+                "requesting supervised restart..."
             )
+            cls._consecutive_login_failures = 0
             from miairx.core.lifecycle import lifecycle
             lifecycle.trigger_shutdown()
 
@@ -81,10 +93,11 @@ class SpeakerController:
             # Re-raise login errors for retry decorator
             raise
         except Exception as e:
-            log.error(f"play_url failed: {e}")
+            message = _short_error(e)
+            log.error(f"play_url failed: {message}")
             SpeakerController._consecutive_login_failures += 1
-            SpeakerController._check_and_trigger_restart()
-            raise SpeakerError(f"Failed to play URL: {e}") from e
+            self._check_and_trigger_restart()
+            raise SpeakerError(f"Failed to play URL: {message}") from e
 
     @with_login_retry
     async def pause(self) -> bool:
@@ -103,10 +116,11 @@ class SpeakerController:
             SpeakerController._consecutive_login_failures = 0
             return True
         except Exception as e:
-            log.error(f"pause failed: {e}")
+            message = _short_error(e)
+            log.error(f"pause failed: {message}")
             SpeakerController._consecutive_login_failures += 1
-            SpeakerController._check_and_trigger_restart()
-            raise SpeakerError(f"Failed to pause: {e}") from e
+            self._check_and_trigger_restart()
+            raise SpeakerError(f"Failed to pause: {message}") from e
 
     @with_login_retry
     async def stop(self) -> bool:
@@ -119,10 +133,11 @@ class SpeakerController:
             SpeakerController._consecutive_login_failures = 0
             return True
         except Exception as e:
-            log.error(f"stop failed: {e}")
+            message = _short_error(e)
+            log.error(f"stop failed: {message}")
             SpeakerController._consecutive_login_failures += 1
-            SpeakerController._check_and_trigger_restart()
-            raise SpeakerError(f"Failed to stop: {e}") from e
+            self._check_and_trigger_restart()
+            raise SpeakerError(f"Failed to stop: {message}") from e
 
     @with_login_retry
     async def set_volume(self, volume: int) -> bool:
@@ -137,10 +152,11 @@ class SpeakerController:
             SpeakerController._consecutive_login_failures = 0
             return True
         except Exception as e:
-            log.error(f"set_volume failed: {e}")
+            message = _short_error(e)
+            log.error(f"set_volume failed: {message}")
             SpeakerController._consecutive_login_failures += 1
-            SpeakerController._check_and_trigger_restart()
-            raise SpeakerError(f"Failed to set volume: {e}") from e
+            self._check_and_trigger_restart()
+            raise SpeakerError(f"Failed to set volume: {message}") from e
 
     @with_login_retry
     async def get_volume(self) -> int:
@@ -154,7 +170,7 @@ class SpeakerController:
                 return volume
             return self._last_volume
         except Exception as e:
-            log.error(f"get_volume failed: {e}")
+            log.error(f"get_volume failed: {_short_error(e)}")
             return self._last_volume
 
     @with_login_retry
@@ -189,5 +205,5 @@ class SpeakerController:
                 return status.get("current_song_url")
             return None
         except Exception as e:
-            log.error(f"get_current_track failed: {e}")
+            log.error(f"get_current_track failed: {_short_error(e)}")
             return None

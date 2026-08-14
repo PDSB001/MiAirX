@@ -49,8 +49,11 @@ class SpeakerConfig(BaseModel):
         """
         if self.dlna_name:
             return self.dlna_name
-        hardware = self.hardware or "Speaker"
-        return f"XiaoAI {hardware} ({self.did})"
+        if self.name:
+            return self.name
+        if self.did:
+            return f"XiaoAI-{self.did}"
+        return "XiaoAI Speaker"
 
     def ensure_udn(self) -> None:
         """Ensure UDN (Unique Device Name) is set."""

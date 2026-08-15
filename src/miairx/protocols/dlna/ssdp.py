@@ -37,12 +37,18 @@ class SsdpProtocol(asyncio.DatagramProtocol):
 class SsdpServer:
     """SSDP multicast server for device discovery."""
 
+    _STARTUP_ALIVE_DELAYS = (0.15, 0.35, 0.75)
+    _MAX_MSEARCH_DELAY = 0.5
+    _DOCKER_MAX_MSEARCH_DELAY = 0.25
+    _MSEARCH_RESPONSE_SPACING = 0.01
+
     def __init__(self, hostname: str, dlna_port: int):
         self.hostname = hostname
         self.dlna_port = dlna_port
         self.renderers: dict[str, str] = {}  # udn -> friendly_name
         self._transport: Optional[asyncio.DatagramTransport] = None
         self._alive_task: Optional[asyncio.Task] = None
+        self._startup_alive_task: Optional[asyncio.Task] = None
         self._sock: Optional[socket.socket] = None
 
         # Pre-built message caches (built once at registration, reused forever)
@@ -139,14 +145,15 @@ class SsdpServer:
         return os.path.isfile("/.dockerenv")
 
     def _resolve_bind_ip(self) -> str:
-        """Return the IP to bind the SSDP socket to.
+        """Return the interface IP used for SSDP multicast traffic.
 
-        In Docker, multicast via 0.0.0.0 has no route — must bind to
-        the actual LAN IP. Outside Docker, use INADDR_ANY as usual.
+        The receive socket must still bind to INADDR_ANY so it receives
+        multicast M-SEARCH packets. This address only selects the interface
+        used to join the group and send multicast traffic from Docker.
         """
         if not SsdpServer._is_docker():
             return ""  # INADDR_ANY
-        # Docker: prefer configured hostname, fall back to detection
+        # Docker: prefer configured hostname, fall back to detection.
         if self.hostname and self.hostname not in ("", "0.0.0.0"):
             try:
                 socket.inet_aton(self.hostname)
@@ -176,13 +183,18 @@ class SsdpServer:
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        if hasattr(socket, "SO_REUSEPORT"):
+        # SO_REUSEPORT can load-balance UDP packets between listeners on
+        # Linux. Avoid it in Docker, where that can make M-SEARCH packets
+        # intermittently land in a different host process.
+        if not in_docker and hasattr(socket, "SO_REUSEPORT"):
             try:
                 self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             except (AttributeError, OSError):
                 pass
 
-        self._sock.bind((bind_ip, SSDP_PORT))
+        # Always receive on every local address. Binding to a specific LAN IP
+        # can exclude multicast packets on Linux/host-networked containers.
+        self._sock.bind(("", SSDP_PORT))
 
         # Docker: tell kernel which interface to use for multicast
         if in_docker and bind_ip:
@@ -190,6 +202,9 @@ class SsdpServer:
                 socket.IPPROTO_IP, socket.IP_MULTICAST_IF,
                 socket.inet_aton(bind_ip),
             )
+
+        self._sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+        self._sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 1)
 
         # Join multicast group
         iface = bind_ip if in_docker and bind_ip else "0.0.0.0"
@@ -210,12 +225,32 @@ class SsdpServer:
         # Send initial alive
         await self._send_alive()
 
+        # UDP multicast is lossy, especially while a host-networked container
+        # is still settling. Repeat the initial advertisements in a short
+        # burst so clients discover renderers without waiting for the next
+        # periodic announcement.
+        self._startup_alive_task = asyncio.create_task(
+            self._send_startup_alive_burst()
+        )
+
         # Start periodic alive task
         self._alive_task = asyncio.create_task(self._periodic_alive())
-        log.info(f"SSDP server started (listening on {SSDP_ADDR}:{SSDP_PORT})")
+        log.info(
+            "SSDP server started "
+            f"(group={SSDP_ADDR}:{SSDP_PORT}, interface={bind_ip or 'default'}, "
+            f"docker={in_docker})"
+        )
 
     async def stop(self):
         """Stop SSDP server."""
+        if self._startup_alive_task:
+            self._startup_alive_task.cancel()
+            try:
+                await self._startup_alive_task
+            except asyncio.CancelledError:
+                pass
+            self._startup_alive_task = None
+
         # Send byebye (with timeout)
         try:
             await asyncio.wait_for(self._send_byebye(), timeout=2.0)
@@ -252,6 +287,15 @@ class SsdpServer:
             for data in self._alive_msgs.get(udn, ()):
                 self._transport.sendto(data, (SSDP_ADDR, SSDP_PORT))
 
+    async def _send_startup_alive_burst(self):
+        """Repeat alive announcements shortly after startup."""
+        try:
+            for delay in self._STARTUP_ALIVE_DELAYS:
+                await asyncio.sleep(delay)
+                await self._send_alive()
+        except asyncio.CancelledError:
+            pass
+
     async def _send_byebye(self):
         """Send NOTIFY byebye."""
         if not self._transport:
@@ -277,7 +321,8 @@ class SsdpServer:
         except UnicodeDecodeError:
             return
 
-        if "M-SEARCH" not in message:
+        request_line = message.split("\r\n", 1)[0].upper()
+        if not request_line.startswith("M-SEARCH "):
             return
 
         # Parse ST (Search Target) and MX
@@ -296,18 +341,43 @@ class SsdpServer:
         if not st:
             return
 
-        # Send cached response for each matching renderer
+        # Gather cached responses for each matching renderer.
+        normalized_st = st.lower()
+        responses = []
         for udn in self.renderers:
             replies = self._msearch_replies.get(udn, {})
             targets = self._get_search_targets(udn)
-            for target_st, target_usn in targets:
-                if st == "ssdp:all" or st == target_st:
+            for target_st, _target_usn in targets:
+                if normalized_st == "ssdp:all" or normalized_st == target_st.lower():
                     response = replies.get(target_st)
                     if response is not None:
-                        delay = random.uniform(0, min(mx, 3))
-                        asyncio.get_running_loop().call_later(
-                            delay,
-                            self._transport.sendto,
-                            response,
-                            addr,
-                        )
+                        responses.append(response)
+
+        transport = self._transport
+        if not responses or transport is None:
+            return
+
+        # The previous implementation independently delayed every reply by as
+        # much as three seconds. A small randomized window still avoids a LAN
+        # response implosion while making Docker discovery feel immediate.
+        max_delay = (
+            self._DOCKER_MAX_MSEARCH_DELAY
+            if self._is_docker()
+            else self._MAX_MSEARCH_DELAY
+        )
+        response_window = max(0.0, min(float(mx), max_delay))
+        spacing = min(
+            self._MSEARCH_RESPONSE_SPACING,
+            response_window / max(len(responses), 1),
+        )
+        latest_base = max(0.0, response_window - spacing * (len(responses) - 1))
+        base_delay = random.uniform(0.0, latest_base) if latest_base else 0.0
+        loop = asyncio.get_running_loop()
+
+        for index, response in enumerate(responses):
+            loop.call_later(
+                base_delay + spacing * index,
+                transport.sendto,
+                response,
+                addr,
+            )

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import secrets
+import socket
 import time
 from typing import Optional
 
@@ -68,11 +69,16 @@ class DlnaHttpServer:
     def _get_proxy_session(self) -> aiohttp.ClientSession:
         """Get or create persistent HTTP session for proxy."""
         if not self._proxy_session or self._proxy_session.closed:
-            connector = aiohttp.TCPConnector(limit=50, ttl_dns_cache=300)
+            connector = aiohttp.TCPConnector(
+                family=socket.AF_INET,
+                limit=50,
+                ttl_dns_cache=300,
+            )
             self._proxy_session = aiohttp.ClientSession(
                 connector=connector,
-                timeout=aiohttp.ClientTimeout(total=120, connect=10, sock_read=60),
+                timeout=aiohttp.ClientTimeout(total=None, connect=10, sock_read=120),
                 headers={"User-Agent": self._UA},
+                auto_decompress=False,
             )
         return self._proxy_session
 
@@ -523,7 +529,7 @@ class DlnaHttpServer:
         except Exception as e:
             log.debug(f"Initial event failed for {sid}: {e}")
 
-    async def _handle_media_request(self, request: web.Request) -> web.Response:
+    async def _handle_media_request(self, request: web.Request) -> web.StreamResponse:
         """Handle media proxy request with Range support (zero-copy via memoryview)."""
         token = request.match_info.get("token", "")
 
@@ -537,12 +543,18 @@ class DlnaHttpServer:
         if not buffer:
             return web.Response(status=404, text="Buffer not found")
 
+        if buffer.is_passthrough:
+            return await self._handle_passthrough_request(request, buffer)
+
         # Wait for download to complete (like original project)
         if not buffer.is_complete and not buffer.is_error:
             log.info(f"Waiting for download to complete: {buffer.url[:80]}...")
             success = await buffer.wait_ready(timeout=120)
             if not success:
                 return web.Response(status=504, text="Download timeout")
+
+        if buffer.is_passthrough:
+            return await self._handle_passthrough_request(request, buffer)
 
         if buffer.is_error:
             return web.Response(status=502, text=buffer.error_message)
@@ -579,6 +591,72 @@ class DlnaHttpServer:
 
         await response.write_eof()
         return response
+
+    async def _handle_passthrough_request(
+        self, request: web.Request, buffer: MediaBuffer
+    ) -> web.StreamResponse:
+        """Stream oversized media from its source without buffering it in RAM."""
+        upstream_request_headers = {}
+        for name in ("Range", "If-Range"):
+            value = request.headers.get(name)
+            if value:
+                upstream_request_headers[name] = value
+
+        response: Optional[web.StreamResponse] = None
+        try:
+            session = self._get_proxy_session()
+            method = "HEAD" if request.method == "HEAD" else "GET"
+            async with session.request(
+                method,
+                buffer.url,
+                headers=upstream_request_headers,
+                allow_redirects=True,
+            ) as upstream:
+                response_headers = {}
+                for name in (
+                    "Content-Type",
+                    "Content-Length",
+                    "Content-Range",
+                    "Accept-Ranges",
+                    "Content-Encoding",
+                    "ETag",
+                    "Last-Modified",
+                ):
+                    value = upstream.headers.get(name)
+                    if value is not None:
+                        response_headers[name] = value
+
+                response_headers.setdefault(
+                    "Content-Type", buffer.content_type or "application/octet-stream"
+                )
+                response_headers.setdefault("Accept-Ranges", "bytes")
+
+                response = web.StreamResponse(
+                    status=upstream.status,
+                    reason=upstream.reason,
+                    headers=response_headers,
+                )
+                await response.prepare(request)
+
+                if method != "HEAD":
+                    async for chunk in upstream.content.iter_chunked(64 * 1024):
+                        await response.write(chunk)
+
+                await response.write_eof()
+                return response
+        except asyncio.CancelledError:
+            raise
+        except ConnectionResetError:
+            log.debug("Oversized media streaming client disconnected")
+            if response is not None:
+                return response
+            raise
+        except Exception as e:
+            log.error(f"Oversized media streaming failed: {e}")
+            if response is not None:
+                response.force_close()
+                return response
+            return web.Response(status=502, text="Upstream media request failed")
 
     def _handle_range_request(
         self,

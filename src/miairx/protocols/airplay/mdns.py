@@ -53,7 +53,7 @@ class AirplayMdns:
                 self.zeroconf = self.shared_zeroconf
                 log.info("Using shared Zeroconf instance")
             else:
-                self.zeroconf = Zeroconf(ip_version=IPVersion.All)
+                self.zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
                 log.info("Created new Zeroconf instance")
 
             # Build device ID (MAC address format without colons)

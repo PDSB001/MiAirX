@@ -177,7 +177,7 @@ start.bat
 启动成功后会看到：
 
 ```
-INFO  MiAirX v1.0.3
+INFO  MiAirX v1.0.4
 INFO  Hostname: 192.168.1.172
 INFO  DLNA  HTTP server on :8200
 INFO  Web  management on :8300

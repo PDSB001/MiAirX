@@ -13,19 +13,28 @@ log = logging.getLogger(__name__)
 class MediaBuffer:
     """Async media download buffer with memory management."""
 
-    def __init__(self, url: str, max_memory: int = 200 * 1024 * 1024):
+    def __init__(
+        self,
+        url: str,
+        max_memory: int = 200 * 1024 * 1024,
+        streaming_threshold: int = 32 * 1024 * 1024,
+    ):
         """Initialize media buffer.
         
         Args:
             url: Media URL to download
             max_memory: Maximum memory usage in bytes (default 200MB)
+            streaming_threshold: Known-size files above this value are streamed
+                directly instead of being fully buffered (default 32MB)
         """
         self.url = url
         self.max_memory = max_memory
+        self.streaming_threshold = min(streaming_threshold, max_memory)
         self.data: bytearray = bytearray()
         self.content_length: int = 0
         self.content_type: str = ""
         self.is_complete: bool = False
+        self.is_passthrough: bool = False
         self.is_error: bool = False
         self.error_message: str = ""
         self.created_at: float = time.time()
@@ -47,25 +56,38 @@ class MediaBuffer:
                     self.error_message = f"HTTP {response.status}"
                     return
 
-                self.content_length = int(response.headers.get("Content-Length", 0))
+                content_length = response.headers.get("Content-Length", "")
+                try:
+                    self.content_length = int(content_length)
+                except (TypeError, ValueError):
+                    self.content_length = 0
                 self.content_type = response.headers.get("Content-Type", "audio/mpeg")
 
-                # Check memory limit
-                if self.content_length > self.max_memory:
-                    log.warning(f"File too large: {self.content_length} > {self.max_memory}")
-                    self.is_error = True
-                    self.error_message = "File too large"
+                # Unknown-size and large responses should be streamed directly.
+                # Fully downloading these before serving delays playback and can
+                # exhaust the container's memory.
+                if (
+                    self.content_length == 0
+                    or self.content_length > self.streaming_threshold
+                ):
+                    self.is_passthrough = True
+                    log.info(
+                        "Using streaming proxy for media with "
+                        f"content length {self.content_length or 'unknown'}"
+                    )
                     return
 
                 # Download data
                 async for chunk in response.content.iter_chunked(8192):
                     async with self._lock:
                         if len(self.data) + len(chunk) > self.max_memory:
-                            self.is_error = True
-                            self.error_message = "File too large"
-                            log.warning(
-                                f"File exceeded memory limit while downloading: "
-                                f"{len(self.data) + len(chunk)} > {self.max_memory}"
+                            buffered_size = len(self.data) + len(chunk)
+                            self.data.clear()
+                            self.is_passthrough = True
+                            log.info(
+                                "Media exceeded memory buffer limit while downloading; "
+                                "using streaming proxy: "
+                                f"{buffered_size} > {self.max_memory}"
                             )
                             return
                         self.data.extend(chunk)
@@ -96,7 +118,7 @@ class MediaBuffer:
         """
         try:
             await asyncio.wait_for(self._complete_event.wait(), timeout=timeout)
-            return self.is_complete and not self.is_error
+            return (self.is_complete or self.is_passthrough) and not self.is_error
         except asyncio.TimeoutError:
             return False
 

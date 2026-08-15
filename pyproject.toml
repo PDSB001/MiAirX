@@ -1,6 +1,6 @@
 [project]
 name = "miairx"
-version = "1.0.3"
+version = "1.0.4"
 description = "Modern DLNA/AirPlay bridge for Xiaomi AI speakers"
 readme = "README.md"
 license = {text = "MIT"}

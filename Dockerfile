@@ -21,6 +21,6 @@ EXPOSE 8200 8300
 ENV PYTHONUNBUFFERED=1
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8300/api/status')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8300/api/status')" || exit 1
 
 CMD ["python", "-m", "miairx"]

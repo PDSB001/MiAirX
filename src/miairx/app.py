@@ -149,6 +149,7 @@ class Application:
         self.web_app: Optional[web.Application] = None
         
         self._is_running = False
+        self._is_stopping = False
 
     async def start(self) -> None:
         """Start the application."""
@@ -278,7 +279,10 @@ class Application:
         log.info("Starting AirPlay server...")
         
         # Create shared Zeroconf instance
-        self._zeroconf = Zeroconf(ip_version=IPVersion.All)
+        # MiAirX advertises LAN services over IPv4. Restrict zeroconf to IPv4
+        # so Docker hosts without an IPv6 route do not repeatedly fail while
+        # attempting to send mDNS packets to ::1:5353.
+        self._zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
         
         # Create AirPlay service for each enabled speaker
         for speaker in self.config.get_enabled_speakers():
@@ -317,34 +321,40 @@ class Application:
 
     async def stop(self) -> None:
         """Stop the application."""
-        if not self._is_running:
+        if self._is_stopping:
             return
-        
-        log.warning("Stopping MiAirX application...")
-        self._is_running = False
-        
-        # Stop web server
-        await self._stop_web_server()
-        
-        # Stop AirPlay server
-        await self._stop_airplay_server()
-        
-        # Stop DLNA server
-        await self._stop_dlna_server()
-        
-        # Stop all speakers
-        if self.speaker_manager:
-            await self.speaker_manager.stop_all()
-        
-        # Close authentication
-        if self.auth:
-            await self.auth.close()
-        
-        # Close HTTP session
-        if self.session:
-            await self.session.close()
-        
-        log.warning("MiAirX application stopped")
+        if not self._is_running and (not self.session or self.session.closed):
+            return
+
+        self._is_stopping = True
+        try:
+            log.warning("Stopping MiAirX application...")
+            self._is_running = False
+
+            # Stop web server
+            await self._stop_web_server()
+
+            # Stop AirPlay server
+            await self._stop_airplay_server()
+
+            # Stop DLNA server
+            await self._stop_dlna_server()
+
+            # Stop all speakers
+            if self.speaker_manager:
+                await self.speaker_manager.stop_all()
+
+            # Close authentication
+            if self.auth:
+                await self.auth.close()
+
+            # Close HTTP session
+            if self.session and not self.session.closed:
+                await self.session.close()
+
+            log.warning("MiAirX application stopped")
+        finally:
+            self._is_stopping = False
 
     async def _stop_web_server(self) -> None:
         """Stop web management interface."""

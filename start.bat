@@ -22,6 +22,8 @@ echo ------------------------------------------------------------
 echo.
 
 set PYTHONPATH=src
+set PYTHONUTF8=1
+set PYTHONIOENCODING=utf-8
 where py >nul 2>nul
 if %errorlevel% equ 0 (
     py -3 -m miairx

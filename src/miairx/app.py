@@ -220,6 +220,10 @@ class Application:
         print(f"\n📡 服务地址:")
         print(f"   DLNA: http://{self.config.hostname}:{self.config.dlna_port}")
         print(f"   Web:  http://{self.config.hostname}:{self.config.web_port}")
+        if speakers:
+            airplay_start, _ = self.config.get_airplay_ports(0)
+            _, airplay_end = self.config.get_airplay_ports(len(speakers) - 1)
+            print(f"   AirPlay TCP: {airplay_start}-{airplay_end}")
         
         print("\n" + "=" * 60)
         print("按 Ctrl+C 停止服务")
@@ -284,21 +288,29 @@ class Application:
         # attempting to send mDNS packets to ::1:5353.
         self._zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
         
-        # Create AirPlay service for each enabled speaker
-        for speaker in self.config.get_enabled_speakers():
+        # Create AirPlay service for each enabled speaker. Every receiver gets
+        # a deterministic pair of TCP ports so Docker hosts can use a bounded
+        # firewall rule instead of exposing the OS ephemeral port range.
+        for speaker_index, speaker in enumerate(self.config.get_enabled_speakers()):
             controller = self.speaker_manager.get_controller_by_did(speaker.did)
             if controller:
+                rtsp_port, audio_port = self.config.get_airplay_ports(speaker_index)
                 airplay = SpeakerAirplay(
                     hostname=self.config.hostname,
                     controller=controller,
                     shared_zeroconf=self._zeroconf,
                     config=self.config,
+                    rtsp_port=rtsp_port,
+                    audio_port=audio_port,
                 )
                 
                 await airplay.start()
                 self._airplay_services[speaker.did] = airplay
                 
-                log.info(f"Registered AirPlay service: {speaker.get_dlna_name()}")
+                log.info(
+                    "Registered AirPlay service: "
+                    f"{speaker.get_dlna_name()} (RTSP {rtsp_port}, audio {audio_port})"
+                )
         
         log.info(f"AirPlay server started")
 

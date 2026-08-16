@@ -26,6 +26,8 @@ class AirplayServer:
         device_name: str,
         shared_zeroconf=None,
         speaker_hardware: str = "",
+        rtsp_port: int = 0,
+        audio_port: int = 0,
     ):
         self.hostname = hostname
         self.device_name = device_name
@@ -35,13 +37,17 @@ class AirplayServer:
         self.device_id = AirplayCrypto.generate_device_id()
         
         # RTSP server
-        self.rtsp_port = 0
+        self.rtsp_port = rtsp_port
         self._server_socket: Optional[socket.socket] = None
         self._server_thread: Optional[threading.Thread] = None
         self._running = False
         
         # Audio stream server
-        self._audio_server = AudioStreamServer(hostname, audio_format="wav")
+        self._audio_server = AudioStreamServer(
+            hostname,
+            port=audio_port,
+            audio_format="wav",
+        )
         
         # mDNS advertiser
         self._mdns = AirplayMdns(
@@ -64,15 +70,22 @@ class AirplayServer:
 
     async def start(self):
         """Start the AirPlay server."""
-        # Start audio stream server
-        await self._audio_server.start()
-        
-        # Create RTSP server socket
-        self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._server_socket.bind(("0.0.0.0", 0))
-        self._server_socket.listen(5)
-        self.rtsp_port = self._server_socket.getsockname()[1]
+        try:
+            # Start the speaker-facing HTTP stream on its configured port.
+            await self._audio_server.start()
+
+            # Start the client-facing RTSP receiver on its configured port.
+            self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._server_socket.bind(("0.0.0.0", self.rtsp_port))
+            self._server_socket.listen(5)
+            self.rtsp_port = self._server_socket.getsockname()[1]
+        except Exception:
+            if self._server_socket:
+                self._server_socket.close()
+                self._server_socket = None
+            await self._audio_server.stop()
+            raise
         
         # Update mDNS port
         self._mdns.update_port(self.rtsp_port)
@@ -85,7 +98,15 @@ class AirplayServer:
         self._server_thread = threading.Thread(target=self._run_server, daemon=True)
         self._server_thread.start()
         
-        log.info(f"AirPlay server started: {self.device_name} (port {self.rtsp_port})")
+        log.info(
+            f"AirPlay server started: {self.device_name} "
+            f"(RTSP {self.rtsp_port}, audio HTTP {self.audio_port})"
+        )
+
+    @property
+    def audio_port(self) -> int:
+        """Return the bound speaker-facing HTTP stream port."""
+        return self._audio_server.port
 
     async def stop(self):
         """Stop the AirPlay server."""

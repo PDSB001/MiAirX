@@ -40,6 +40,7 @@ def create_web_app(config: "AppConfig", app: "Application", config_store: Config
     
     # Setup routes
     web_app.router.add_get("/", handle_index)
+    web_app.router.add_get("/legacy", handle_legacy_index)
     web_app.router.add_get("/favicon.ico", handle_favicon)
     web_app.router.add_get("/api/status", handle_status)
     web_app.router.add_get("/api/config", handle_get_config)
@@ -58,7 +59,16 @@ def create_web_app(config: "AppConfig", app: "Application", config_store: Config
 
 
 async def handle_index(request: web.Request) -> web.Response:
-    """Handle index page."""
+    """Serve the React management console."""
+    app_index = STATIC_DIR / "app" / "index.html"
+    if app_index.exists():
+        return web.FileResponse(app_index)
+    log.warning("React web assets are missing; falling back to the legacy console")
+    return web.FileResponse(STATIC_DIR / "index.html")
+
+
+async def handle_legacy_index(request: web.Request) -> web.Response:
+    """Serve the previous single-file console as a recovery fallback."""
     return web.FileResponse(STATIC_DIR / "index.html")
 
 
@@ -77,6 +87,7 @@ async def handle_status(request: web.Request) -> web.Response:
         "hostname": config.hostname,
         "dlna_port": config.dlna_port,
         "web_port": config.web_port,
+        "airplay_port_start": config.airplay_port_start,
         "speakers_count": len(config.get_enabled_speakers()),
         "is_running": app._is_running,
         "account": config.account[:3] + "***" if config.account else "",
@@ -99,6 +110,7 @@ async def handle_get_config(request: web.Request) -> web.Response:
         "hostname": config.hostname,
         "dlna_port": config.dlna_port,
         "web_port": config.web_port,
+        "airplay_port_start": config.airplay_port_start,
         "verbose": config.verbose,
         "proxy_enabled": config.proxy_enabled,
         "auto_play_on_set_uri": config.auto_play_on_set_uri,
@@ -120,6 +132,24 @@ async def handle_save_config(request: web.Request) -> web.Response:
         data = await request.json()
         config = request.app["config"]
         config_store = request.app["config_store"]
+
+        # Validate the complete port layout before mutating the live config.
+        # AirPlay consumes two consecutive TCP ports for every configured DID.
+        candidate = config.model_copy(
+            update={
+                "dlna_port": int(data.get("dlna_port", config.dlna_port)),
+                "web_port": int(data.get("web_port", config.web_port)),
+                "airplay_port_start": int(
+                    data.get("airplay_port_start", config.airplay_port_start)
+                ),
+            }
+        )
+        candidate_dids = str(data.get("mi_did", config.mi_did))
+        speaker_count = len(
+            [did for did in candidate_dids.split(",") if did.strip()]
+        )
+        for speaker_index in range(max(1, speaker_count)):
+            candidate.get_airplay_ports(speaker_index)
         
         # Update config fields
         if "account" in data:
@@ -147,6 +177,8 @@ async def handle_save_config(request: web.Request) -> web.Response:
             config.dlna_port = int(data["dlna_port"])
         if "web_port" in data:
             config.web_port = int(data["web_port"])
+        if "airplay_port_start" in data:
+            config.airplay_port_start = int(data["airplay_port_start"])
         if "verbose" in data:
             config.verbose = bool(data["verbose"])
         if "proxy_enabled" in data:

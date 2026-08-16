@@ -26,6 +26,8 @@ class SpeakerAirplay:
         controller: SpeakerController,
         shared_zeroconf: Optional[Zeroconf] = None,
         config=None,
+        rtsp_port: int = 0,
+        audio_port: int = 0,
     ):
         self.hostname = hostname
         self.controller = controller
@@ -33,6 +35,8 @@ class SpeakerAirplay:
         self.device_name = self.speaker.get_dlna_name()
         self.shared_zeroconf = shared_zeroconf
         self.config = config
+        self.rtsp_port = rtsp_port
+        self.audio_port = audio_port
         self.airplay_server: Optional[AirplayServer] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         
@@ -52,6 +56,8 @@ class SpeakerAirplay:
                 device_name=self.device_name,
                 shared_zeroconf=self.shared_zeroconf,
                 speaker_hardware=self.speaker.hardware,
+                rtsp_port=self.rtsp_port,
+                audio_port=self.audio_port,
             )
 
             # Set callbacks
@@ -60,7 +66,11 @@ class SpeakerAirplay:
             self.airplay_server.on_volume_change = self._on_volume_change
 
             await self.airplay_server.start()
-            log.info(f"AirPlay service started for {self.device_name}, port: {self.airplay_server.rtsp_port}")
+            log.info(
+                f"AirPlay service started for {self.device_name}, "
+                f"RTSP: {self.airplay_server.rtsp_port}, "
+                f"audio: {self.airplay_server.audio_port}"
+            )
             
         except Exception as e:
             log.error(f"Failed to start AirPlay for {self.device_name}: {e}")

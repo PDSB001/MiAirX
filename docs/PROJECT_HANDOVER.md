@@ -1,359 +1,141 @@
-# MiAirX 项目交接文档
+# MiAirX 项目交接
 
-## 项目概述
+最后更新：2026-08-16
 
-MiAirX 是基于原始 MiAir 项目的现代化重构版本，为小米 AI 音箱提供 DLNA 和 AirPlay 支持。
+## 当前状态
 
-**项目位置**: `C:\Users\jxy\PycharmProjects\MiAirX`
-**原始项目**: `C:\Users\jxy\PycharmProjects\MiAir`
+MiAirX 当前版本线为 1.0.4。核心 DLNA、AirPlay 1、媒体代理、多设备配置和管理台均已实现。工作区中的管理台已经迁移到 React/TypeScript，根路径使用新页面，旧页面保留在 `/legacy`。
 
-## 快速启动
+最近一轮重点改动：
 
-```bash
-# 进入项目目录
-cd C:\Users\jxy\PycharmProjects\MiAirX
+- 修复旧自动切歌任务影响新媒体的问题
+- 大文件改为流式代理，避免整文件等待与内存压力
+- Zeroconf 限制为 IPv4，减少 Docker IPv6 错误
+- SSDP 主动发现与 Docker 发现速度优化
+- Web 管理台迁移到 React + Vite + TanStack Query
+- Docker 改成前端构建、Python 运行的多阶段镜像
+- CI 增加前端、浏览器和静态产物一致性检查
 
-# 安装依赖
-py -m pip install aiohttp miservice-fork zeroconf pycryptodome structlog pydantic pydantic-settings
+## 关键目录
 
-# 配置账号
-# 编辑 conf/config.json，填入小米账号信息
-
-# 启动服务
-set PYTHONPATH=src
-py -m miairx
-
-# 或使用启动脚本
-start.bat
-```
-
-## 项目结构
-
-```
+```text
 MiAirX/
 ├── src/miairx/
-│   ├── __init__.py             # 版本: 1.0.0
-│   ├── cli.py                  # 命令行入口
-│   ├── app.py                  # 应用编排器（核心！）
-│   ├── const.py                # 常量定义
-│   ├── core/                   # 核心模块
-│   ├── config/                 # 配置模块
-│   ├── auth/                   # 认证模块
-│   ├── speaker/                # 音箱控制
-│   ├── protocols/
-│   │   ├── dlna/               # DLNA 协议（重点）
-│   │   └── airplay/            # AirPlay 协议
-│   ├── media/                  # 媒体处理
-│   └── web/                    # Web 管理
-├── tests/                      # 测试
-├── conf/config.json            # 配置文件
-├── start.bat                   # Windows 启动脚本
-└── README.md                   # 文档
+│   ├── app.py                  应用生命周期与状态同步
+│   ├── cli.py                  命令行、环境变量覆盖
+│   ├── auth/                   小米登录和 Cookie
+│   ├── config/                 Pydantic 配置和持久化
+│   ├── media/                  缓冲、代理、转码
+│   ├── protocols/dlna/         SSDP、SOAP、GENA、渲染器
+│   ├── protocols/airplay/      RAOP/RTSP、mDNS、音频流
+│   ├── speaker/                小米音箱控制器
+│   └── web/                    aiohttp API 和生产静态资源
+├── frontend/                   React/TypeScript 管理台
+├── tests/                      Python 单元与集成测试
+├── docs/                       用户和开发文档
+├── Dockerfile                  多阶段生产镜像
+└── .github/workflows/          Python、前端和镜像 CI
 ```
 
-## 核心模块说明
+## 开发入口
 
-### 1. app.py - 应用编排器
-
-这是整个应用的核心，负责：
-- 初始化所有组件
-- 启动 DLNA/AirPlay/Web 服务器
-- 健康检查和状态轮询
-- 状态同步逻辑（关键！）
-
-**重要函数**:
-- `start()`: 启动应用
-- `_poll_speaker_states()`: 轮询音箱状态
-- `_sync_renderer_state()`: 同步渲染器状态（有重要保护逻辑）
-- `_auto_resume_after_delay()`: 自动恢复播放
-
-### 2. protocols/dlna/renderer.py - DLNA 渲染器
-
-DLNA 渲染器状态机，处理：
-- 播放/暂停/停止/Seek
-- 位置追踪
-- 状态通知
-
-**重要方法**:
-- `set_av_transport_uri()`: 设置媒体 URI
-- `play()`: 开始播放（支持从暂停位置继续）
-- `pause()`: 暂停
-- `stop()`: 停止
-- `seek()`: 跳转
-- `notify_state_change()`: 发送状态变更通知
-
-### 3. protocols/dlna/server.py - DLNA HTTP 服务器
-
-处理所有 HTTP 请求：
-- 设备描述 XML
-- SOAP 控制请求
-- 事件订阅
-- 媒体代理
-
-**重要方法**:
-- `_handle_device_request()`: 处理设备请求
-- `_handle_soap()`: 处理 SOAP 请求
-- `_handle_event()`: 处理事件订阅
-- `_handle_media_request()`: 处理媒体代理请求
-- `create_proxy_url()`: 创建代理 URL
-- `create_seek_url()`: 创建 Seek URL（关键！）
-
-### 4. protocols/dlna/eventing.py - 事件管理
-
-管理 UPnP 事件订阅：
-- 订阅/续订/取消
-- 发送事件通知
-- 持久 HTTP session
-
-**重要函数**:
-- `build_last_change_event()`: 构建 LastChange 事件 XML
-
-### 5. media/buffer.py - 媒体缓冲
-
-异步下载音频文件：
-- 支持 Range 请求
-- 内存管理
-- 下载完成检测
-
-## 关键实现细节
-
-### 1. 状态同步保护逻辑（app.py）
-
-```python
-async def _sync_renderer_state(self, udn, renderer, speaker_status):
-    # 1. TRANSITIONING 保护：play()/seek() 执行中不覆盖状态
-    if old_state == TransportState.TRANSITIONING:
-        return
-    
-    # 2. 宽限期保护：宽限期内不覆盖 PLAYING 状态
-    if renderer._play_grace_until > 0 and time.time() < renderer._play_grace_until:
-        return
-    
-    # 3. PAUSED -> PLAYING 跳过
-    if old_state == TransportState.PAUSED and new_state == TransportState.PLAYING:
-        return
-    
-    # 4. STOPPED -> PAUSED 转换：保持播放位置
-    if new_state == TransportState.STOPPED:
-        renderer.transport_state = TransportState.PAUSED  # 不是 STOPPED！
-        # 启动自动恢复
-```
-
-### 2. SOAP 响应格式（templates.py）
-
-必须使用和原项目完全一致的格式：
-```python
-def soap_response(service_urn, action, params):
-    params_xml = ""
-    for key, value in params.items():
-        params_xml += f"        <{key}>{escape(str(value))}</{key}>\n"
-    
-    return f"""<?xml version="1.0" encoding="utf-8"?>
-<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"
-            s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-  <s:Body>
-    <u:{action}Response xmlns:u="{service_urn}">
-{params_xml}    </u:{action}Response>
-  </s:Body>
-</s:Envelope>"""
-```
-
-### 3. 事件订阅响应（server.py）
-
-SUBSCRIBE 响应后必须发送初始事件：
-```python
-async def _handle_event(self, request, renderer):
-    if request.method == "SUBSCRIBE":
-        sid = manager.subscribe(callback, timeout)
-        
-        # 重置音量初始化标志
-        renderer._volume_initialized = False
-        
-        # 发送初始事件（后台任务）
-        asyncio.create_task(self._send_initial_event(manager, sid, renderer))
-        
-        return web.Response(
-            status=200,
-            headers={"SID": sid, "TIMEOUT": f"Second-{timeout}"},
-        )
-```
-
-### 4. 媒体代理（server.py）
-
-必须等待下载完成后再提供服务：
-```python
-async def _handle_media_request(self, request):
-    # 等待下载完成（像原项目一样）
-    if not buffer.is_complete and not buffer.is_error:
-        success = await buffer.wait_ready(timeout=120)
-    
-    # 使用 web.StreamResponse 流式传输
-    response = web.StreamResponse(status=200, headers=headers)
-    await response.prepare(request)
-    await response.write(data)
-```
-
-### 5. Seek 功能（server.py）
-
-暂停后从原位置继续播放：
-```python
-async def create_seek_url(self, original_url, seek_seconds, duration, udn):
-    # 1. 等待缓冲完成
-    await buffer.wait_ready()
-    
-    # 2. 尝试 FFmpeg seek
-    seeked_data = await self._ffmpeg_seek(data, seek_seconds, content_type)
-    
-    # 3. 回退：格式感知 seek
-    if seeked_data is None:
-        seeked_data = self._format_seek(data, seek_ratio, content_type)
-    
-    # 4. 创建新的 seeked 缓冲
-    seek_buf = MediaBuffer(original_url)
-    seek_buf.data = seeked_data
-    seek_buf.is_complete = True
-```
-
-## 遇到的问题及解决方案
-
-### 问题 1: DLNA 发现失败
-
-**原因**: SSDP 使用了错误的事件循环函数
-
-**解决方案**:
-```python
-# 错误
-asyncio.get_event_loop().call_later(...)
-
-# 正确
-asyncio.get_running_loop().call_later(...)
-```
-
-### 问题 2: QQ音乐连接后秒断
-
-**原因**: SOAP 响应格式不一致
-
-**解决方案**:
-- 使用 `escape()` 转义参数值
-- 使用 `utf-8` 编码（小写）
-- 使用和原项目完全一致的缩进格式
-
-### 问题 3: 播放后秒断
-
-**原因**: 健康检查轮询没有保护逻辑
-
-**解决方案**:
-- 实现 TRANSITIONING 保护
-- 实现宽限期保护
-- 实现 PAUSED -> PLAYING 跳过
-- 实现 STOPPED -> PAUSED 转换
-
-### 问题 4: 媒体代理失败
-
-**原因**: 没有等待下载完成
-
-**解决方案**:
-```python
-# 等待下载完成
-success = await buffer.wait_ready(timeout=120)
-```
-
-### 问题 5: 暂停后从头播放
-
-**原因**: 没有实现 seek_url_func
-
-**解决方案**:
-- 实现 `create_seek_url` 方法
-- 使用 FFmpeg 或格式感知的 seek
-
-### 问题 6: asyncio 未导入
-
-**原因**: server.py 缺少 `import asyncio`
-
-**解决方案**: 添加 `import asyncio`
-
-### 问题 7: HTTP 响应头冲突
-
-**原因**: 同时设置 `content_type` 和 `headers`
-
-**解决方案**: 只使用 `content_type` 参数
-
-## 原项目关键文件参考
-
-原始 MiAir 项目位于 `C:\Users\jxy\PycharmProjects\MiAir`，关键文件：
-
-- `miair/dlna/renderer.py`: DLNA 渲染器状态机
-- `miair/dlna/device_server.py`: DLNA HTTP 服务器（1443 行，God Object）
-- `miair/dlna/eventing.py`: 事件管理
-- `miair/dlna/templates.py`: XML 模板
-- `miair/dlna/soap_handler.py`: SOAP 处理
-- `miair/dlna/ssdp.py`: SSDP 发现
-- `miair/airplay/server.py`: AirPlay 服务器
-- `miair/speaker.py`: 音箱控制
-- `miair/auth.py`: 认证管理
-
-## 测试
+后端：
 
 ```bash
-# 运行所有测试
-set PYTHONPATH=src
-py -m pytest tests/ -v
-
-# 运行特定测试
-py -m pytest tests/unit/test_dlna_renderer.py -v
+python -m pip install -e ".[dev]"
+pytest tests -q
+miairx --verbose
 ```
 
-**测试结果**: 85 个测试全部通过
+前端：
 
-## 待完成工作
+```bash
+cd frontend
+pnpm install --frozen-lockfile
+pnpm dev
+```
 
-### 1. AirPlay 功能完善
+完整步骤见 [开发指南](DEVELOPMENT.md)。
 
-- [ ] FairPlay3 DRM 支持
-- [ ] 更多 iOS 版本兼容
-- [ ] 多房间同步
+## 必须保持的行为
 
-### 2. 媒体处理优化
+### 媒体 generation
 
-- [ ] 更多音频格式支持
-- [ ] 流式转码（不等待下载完成）
-- [ ] 内存优化
+`DlnaRenderer._media_generation` 用于判断自动下一曲任务是否已经过期。任何替换当前 URI 的路径都应推进 generation；旧任务不能停止新媒体。
 
-### 3. Web UI 改进
+### 大文件流式代理
 
-- [ ] 更丰富的管理功能
-- [ ] 实时状态更新
-- [ ] 移动端优化
+`MediaBuffer.streaming_mode` 让大文件和未知长度媒体绕过完整内存缓冲。修改代理时同时覆盖：
 
-### 4. 测试完善
+- 普通 GET
+- Range 请求
+- 上游断开
+- 客户端断开
+- token/buffer 回收
 
-- [ ] 集成测试
-- [ ] 端到端测试
-- [ ] 性能测试
+### 状态同步保护
 
-### 5. 文档完善
+健康检查得到的云端状态可能滞后。不要移除 TRANSITIONING、grace period、用户停止标记和假 STOPPED 保护，除非有客户端和真实音箱回归证据。
 
-- [ ] 用户手册
-- [ ] 开发者文档
-- [ ] API 文档
+### IPv4 广播
 
-## 注意事项
+SSDP 和 AirPlay Zeroconf 当前明确使用 IPv4。Docker 环境中恢复双栈广播前，必须验证没有 IPv6 路由的宿主机不会持续报错。
 
-1. **严格遵循原项目逻辑**: DLNA 协议有很多细节，必须严格遵循原项目的实现
-2. **SOAP 响应格式**: 必须使用 `escape()` 转义，使用 `utf-8` 编码
-3. **事件订阅**: SUBSCRIBE 响应后必须发送初始事件
-4. **状态同步**: 必须有保护逻辑，避免覆盖 PLAYING 状态
-5. **媒体代理**: 必须等待下载完成后再提供服务
-6. **Seek 功能**: 暂停后必须从原位置继续播放
+### 静态前端产物
 
-## 联系方式
+`frontend/pnpm build` 输出到 `src/miairx/web/static/app/`。源码和产物需要一起提交，CI 会拒绝不一致的产物。
 
-如有问题，请参考：
-- 原始项目: `C:\Users\jxy\PycharmProjects\MiAir`
-- 项目文档: `README.md`
-- 测试文件: `tests/`
+## 配置注意点
 
----
+- `hostname` 必须是音箱可访问的局域网地址。
+- 管理台保存不会热重启服务。
+- `proxy_enabled`、`auto_play_on_set_uri`、`enable_voice_control`、`voice_poll_interval` 是兼容性保留字段，当前没有完整运行路径。
+- `auto_restart` 只请求退出，需要外部监督器拉起。
+- `conf/config.json` 含敏感信息，绝不能提交。
 
-**最后更新**: 2026-07-22
-**项目状态**: ✅ 核心功能完成，可正常使用
+## 验证基线
+
+修改后至少运行：
+
+```bash
+pytest tests -q
+
+cd frontend
+pnpm check
+pnpm test:e2e
+```
+
+涉及打包时再运行：
+
+```bash
+python -m build
+docker build -t miairx:test .
+```
+
+本地没有 Docker CLI 时，以 GitHub Docker workflow 的多架构构建结果为准，但不要省略 Dockerfile 静态审查。
+
+## 已知限制
+
+- 管理台没有认证，只适合可信 LAN。
+- Docker Desktop 的虚拟网络通常无法正确承载组播。
+- AirPlay 1 对发送端版本和音频格式较敏感。
+- 媒体源的 DRM、过期签名或特殊鉴权不在 MiAirX 能力范围内。
+- Web 直连 `/api/play` 是直接音箱控制，不一定拥有 DLNA metadata 和完整 duration。
+- 部分配置字段仍为保留项，后续应实现或移除。
+
+## 后续优先级
+
+1. 为 Web API 增加局域网认证或可选访问令牌。
+2. 对配置更新增加后端校验和明确的热重载能力边界。
+3. 为大文件流式代理增加更多上游异常与 Range 集成测试。
+4. 整理 AirPlay 兼容矩阵并补充真实设备回归。
+5. 将保留配置字段实现或迁移清理。
+
+## 发版检查
+
+- 更新 `pyproject.toml` 与 `src/miairx/__init__.py` 版本
+- 更新 CHANGELOG/Release notes 和必要文档
+- 确认 Python、frontend、Playwright、wheel 构建通过
+- 确认 GHCR amd64/arm64 镜像通过
+- 从干净环境安装 wheel 做一次启动检查
+- Docker 使用 host 网络做一次真实 SSDP 发现检查

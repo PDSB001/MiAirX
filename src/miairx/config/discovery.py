@@ -1,5 +1,6 @@
 """Configuration discovery utilities for MiAirX"""
 
+import ipaddress
 import logging
 import os
 import socket
@@ -8,15 +9,61 @@ log = logging.getLogger(__name__)
 
 
 def detect_local_ip() -> str:
-    """Auto-detect local LAN IP address."""
+    """Auto-detect a usable IPv4 address without sending network traffic."""
+
+    def is_usable(candidate: str) -> bool:
+        try:
+            address = ipaddress.ip_address(candidate)
+        except ValueError:
+            return False
+        return (
+            address.version == 4
+            and not address.is_loopback
+            and not address.is_unspecified
+            and not address.is_link_local
+            and not address.is_multicast
+        )
+
+    # UDP connect only asks the kernel which source address its default route
+    # would use; no packet needs to be exchanged with these destinations.
+    for destination in ("223.5.5.5", "1.1.1.1", "8.8.8.8"):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.connect((destination, 80))
+            candidate = sock.getsockname()[0]
+            if is_usable(candidate):
+                return candidate
+        except OSError:
+            pass
+        finally:
+            sock.close()
+
+    # Devices without a default route may still have a valid LAN interface.
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return "127.0.0.1"
+        candidates = {
+            item[4][0]
+            for item in socket.getaddrinfo(
+                socket.gethostname(),
+                None,
+                family=socket.AF_INET,
+                type=socket.SOCK_DGRAM,
+            )
+        }
+        usable = [candidate for candidate in candidates if is_usable(candidate)]
+        if usable:
+            # Prefer RFC1918 addresses, then keep the result deterministic.
+            return sorted(
+                usable,
+                key=lambda candidate: (
+                    not ipaddress.ip_address(candidate).is_private,
+                    candidate,
+                ),
+            )[0]
+    except OSError:
+        pass
+
+    log.warning("Unable to detect a LAN IPv4 address; falling back to loopback")
+    return "127.0.0.1"
 
 
 def get_hostname() -> str:

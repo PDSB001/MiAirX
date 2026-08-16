@@ -7,6 +7,43 @@ on:
     branches: [ master, main ]
 
 jobs:
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 11.19.0
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "24"
+        cache: pnpm
+        cache-dependency-path: frontend/pnpm-lock.yaml
+
+    - name: Install frontend dependencies
+      working-directory: frontend
+      run: pnpm install --frozen-lockfile
+
+    - name: Check and build frontend
+      working-directory: frontend
+      run: pnpm check
+
+    - name: Install Playwright browser
+      working-directory: frontend
+      run: pnpm exec playwright install --with-deps chromium
+
+    - name: Run browser smoke tests
+      working-directory: frontend
+      run: pnpm test:e2e
+
+    - name: Verify committed web assets
+      run: git diff --exit-code -- src/miairx/web/static/app
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -55,7 +92,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, frontend]
     
     steps:
     - uses: actions/checkout@v4

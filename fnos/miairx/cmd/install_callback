@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -eu
+
+# Leave hostname unset on first launch. MiAirX selects the IPv4 address from
+# the host's default route and writes a complete config.json itself. Users with
+# multiple LAN interfaces can override the detected address in the dashboard.
+mkdir -p "${TRIM_PKGVAR}/conf"
+
+exit 0

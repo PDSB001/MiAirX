@@ -71,6 +71,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="Web management port (default: 8300)",
     )
+
+    parser.add_argument(
+        "--airplay-port-start",
+        type=int,
+        help="First AirPlay TCP port (two consecutive ports per speaker; default: 7000)",
+    )
     
     return parser.parse_args()
 
@@ -101,6 +107,10 @@ def load_config(args: argparse.Namespace) -> AppConfig:
         port = os.environ.get("MIAIR_WEB_PORT", "")
         if port:
             args.web_port = int(port)
+    if not args.airplay_port_start:
+        port = os.environ.get("MIAIR_AIRPLAY_PORT_START", "")
+        if port:
+            args.airplay_port_start = int(port)
 
     # Override with command line arguments
     if args.account:
@@ -115,6 +125,8 @@ def load_config(args: argparse.Namespace) -> AppConfig:
         config.dlna_port = args.dlna_port
     if args.web_port:
         config.web_port = args.web_port
+    if args.airplay_port_start:
+        config.airplay_port_start = args.airplay_port_start
     if args.verbose:
         config.verbose = True
 

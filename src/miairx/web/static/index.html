@@ -582,12 +582,12 @@ body::after {
                     <label class="form-label">密码</label>
                     <input type="password" class="form-input" id="password" placeholder="留空则不修改">
                 </div>
-                <div style="display:flex;gap:12px;">
-                    <div class="form-group" style="flex:1;">
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <div class="form-group" style="flex:1;min-width:140px;">
                         <label class="form-label">userId（Cookie）</label>
                         <input type="text" class="form-input" id="cookie-userid" placeholder="可选，Cookie 登录">
                     </div>
-                    <div class="form-group" style="flex:1;">
+                    <div class="form-group" style="flex:1;min-width:140px;">
                         <label class="form-label">passToken（Cookie）</label>
                         <input type="text" class="form-input" id="cookie-passtoken" placeholder="可选，Cookie 登录">
                     </div>
@@ -600,14 +600,18 @@ body::after {
                     <label class="form-label">主机名 / IP</label>
                     <input type="text" class="form-input" id="hostname" placeholder="自动检测">
                 </div>
-                <div style="display:flex;gap:12px;">
-                    <div class="form-group" style="flex:1;">
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <div class="form-group" style="flex:1;min-width:140px;">
                         <label class="form-label">DLNA 端口</label>
                         <input type="number" class="form-input" id="dlna_port" value="8200">
                     </div>
-                    <div class="form-group" style="flex:1;">
+                    <div class="form-group" style="flex:1;min-width:140px;">
                         <label class="form-label">Web 端口</label>
                         <input type="number" class="form-input" id="web_port" value="8300">
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:140px;">
+                        <label class="form-label">AirPlay 起始端口</label>
+                        <input type="number" class="form-input" id="airplay_port_start" value="7000">
                     </div>
                 </div>
             </div>
@@ -723,6 +727,7 @@ async function loadConfig() {
         document.getElementById("hostname").value = config.hostname || "";
         document.getElementById("dlna_port").value = config.dlna_port || 8200;
         document.getElementById("web_port").value = config.web_port || 8300;
+        document.getElementById("airplay_port_start").value = config.airplay_port_start || 7000;
         document.getElementById("auto_play_on_set_uri").checked = !!config.auto_play_on_set_uri;
         document.getElementById("auto_resume_on_interrupt").checked = !!config.auto_resume_on_interrupt;
         document.getElementById("proxy_enabled").checked = !!config.proxy_enabled;
@@ -751,6 +756,7 @@ async function saveConfig() {
             hostname: document.getElementById("hostname").value,
             dlna_port: parseInt(document.getElementById("dlna_port").value, 10),
             web_port: parseInt(document.getElementById("web_port").value, 10),
+            airplay_port_start: parseInt(document.getElementById("airplay_port_start").value, 10),
             auto_play_on_set_uri: document.getElementById("auto_play_on_set_uri").checked,
             auto_resume_on_interrupt: document.getElementById("auto_resume_on_interrupt").checked,
             proxy_enabled: document.getElementById("proxy_enabled").checked,

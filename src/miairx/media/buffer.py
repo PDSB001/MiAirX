@@ -41,6 +41,8 @@ class MediaBuffer:
         self.last_accessed: float = time.time()
         self._download_task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
+        self._headers_event = asyncio.Event()
+        self._data_event = asyncio.Event()
         self._complete_event = asyncio.Event()
 
     async def start_download(self, session: aiohttp.ClientSession) -> None:
@@ -71,11 +73,19 @@ class MediaBuffer:
                     or self.content_length > self.streaming_threshold
                 ):
                     self.is_passthrough = True
+                    self._headers_event.set()
+                    self._data_event.set()
                     log.info(
                         "Using streaming proxy for media with "
                         f"content length {self.content_length or 'unknown'}"
                     )
                     return
+
+                # The proxy can start responding as soon as upstream headers
+                # are known. The body continues downloading in the background
+                # and is relayed progressively instead of blocking playback
+                # until the complete track is buffered.
+                self._headers_event.set()
 
                 # Download data
                 async for chunk in response.content.iter_chunked(8192):
@@ -89,12 +99,15 @@ class MediaBuffer:
                                 "using streaming proxy: "
                                 f"{buffered_size} > {self.max_memory}"
                             )
+                            self._data_event.set()
                             return
                         self.data.extend(chunk)
                         self.last_accessed = time.time()
+                    self._data_event.set()
 
                 self.is_complete = True
                 self._complete_event.set()
+                self._data_event.set()
                 log.info(f"Download complete: {len(self.data)} bytes")
 
         except Exception as e:
@@ -105,7 +118,46 @@ class MediaBuffer:
             # Wake waiters on both success and failure. Without this, a
             # download that fails after wait_ready() starts blocks until the
             # full timeout even though the error is already known.
+            self._headers_event.set()
+            self._data_event.set()
             self._complete_event.set()
+
+    async def wait_headers(self, timeout: float = 10.0) -> bool:
+        """Wait until upstream response metadata or an error is available."""
+        try:
+            await asyncio.wait_for(self._headers_event.wait(), timeout=timeout)
+            return not self.is_error
+        except asyncio.TimeoutError:
+            return False
+
+    async def wait_for_data(self, position: int, timeout: float = 120.0) -> bool:
+        """Wait until data after ``position`` or a terminal state is available."""
+
+        async def _wait() -> bool:
+            while True:
+                # Clear before checking state so a writer cannot signal between
+                # the state check and the following wait.
+                self._data_event.clear()
+                async with self._lock:
+                    if len(self.data) > position:
+                        return True
+                    if self.is_complete or self.is_passthrough or self.is_error:
+                        return False
+                await self._data_event.wait()
+
+        try:
+            return await asyncio.wait_for(_wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            return False
+
+    async def read_available(self, start: int, size: int) -> bytes:
+        """Copy up to ``size`` currently buffered bytes starting at ``start``."""
+        async with self._lock:
+            end = min(len(self.data), start + size)
+            if start >= end:
+                return b""
+            self.last_accessed = time.time()
+            return bytes(self.data[start:end])
 
     async def wait_ready(self, timeout: float = 120.0) -> bool:
         """Wait for download to complete.

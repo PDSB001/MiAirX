@@ -1,9 +1,61 @@
 """Unit tests for configuration models"""
 
-import pytest
-from pydantic import ValidationError
+import socket
 
+import pytest
+
+from miairx.config.discovery import detect_local_ip
 from miairx.config.models import AppConfig, SpeakerConfig
+
+
+def test_detect_local_ip_uses_default_route(monkeypatch):
+    """Automatic setup uses the IPv4 selected by the host default route."""
+
+    class FakeSocket:
+        def connect(self, destination):
+            assert destination == ("223.5.5.5", 80)
+
+        @staticmethod
+        def getsockname():
+            return ("192.168.50.10", 12345)
+
+        @staticmethod
+        def close():
+            return None
+
+    monkeypatch.setattr(socket, "socket", lambda *_args, **_kwargs: FakeSocket())
+
+    assert detect_local_ip() == "192.168.50.10"
+
+
+def test_detect_local_ip_falls_back_to_lan_interface(monkeypatch):
+    """A NAS without a default route can still select a private interface."""
+
+    class DisconnectedSocket:
+        @staticmethod
+        def connect(_destination):
+            raise OSError("no route")
+
+        @staticmethod
+        def close():
+            return None
+
+    monkeypatch.setattr(
+        socket,
+        "socket",
+        lambda *_args, **_kwargs: DisconnectedSocket(),
+    )
+    monkeypatch.setattr(socket, "gethostname", lambda: "fnos")
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (socket.AF_INET, socket.SOCK_DGRAM, 0, "", ("127.0.0.1", 0)),
+            (socket.AF_INET, socket.SOCK_DGRAM, 0, "", ("192.168.50.20", 0)),
+        ],
+    )
+
+    assert detect_local_ip() == "192.168.50.20"
 
 
 class TestSpeakerConfig:
@@ -77,6 +129,7 @@ class TestAppConfig:
         config = AppConfig()
         assert config.dlna_port == 8200
         assert config.web_port == 8300
+        assert config.airplay_port_start == 7000
         assert config.verbose is False
         assert config.auto_restart is False
 
@@ -94,6 +147,27 @@ class TestAppConfig:
         assert config.dlna_port == 9000
         assert config.web_port == 9001
         assert config.verbose is True
+
+    def test_airplay_ports_are_deterministic(self):
+        """Each speaker receives a stable RTSP/audio TCP pair."""
+        config = AppConfig(airplay_port_start=7000)
+
+        assert config.get_airplay_ports(0) == (7000, 7001)
+        assert config.get_airplay_ports(1) == (7002, 7003)
+        assert config.get_airplay_ports(49) == (7098, 7099)
+
+    def test_airplay_ports_reject_overlap_with_http_services(self):
+        """A bad custom range must fail before the server binds sockets."""
+        config = AppConfig(dlna_port=8200, web_port=8300, airplay_port_start=8199)
+
+        with pytest.raises(ValueError, match="overlap"):
+            config.get_airplay_ports(0)
+
+    def test_airplay_ports_reject_range_overflow(self):
+        config = AppConfig(airplay_port_start=65535)
+
+        with pytest.raises(ValueError, match="exceeds"):
+            config.get_airplay_ports(0)
 
     def test_get_did_list(self):
         """Test DID list parsing."""

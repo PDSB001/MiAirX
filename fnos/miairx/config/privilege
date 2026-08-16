@@ -1,0 +1,7 @@
+{
+  "defaults": {
+    "run-as": "package"
+  },
+  "username": "docker-miairx",
+  "groupname": "docker-miairx"
+}

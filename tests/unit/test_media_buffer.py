@@ -47,6 +47,47 @@ class _FakeSession:
         return self._response
 
 
+class _SlowContent:
+    def __init__(self):
+        self.first_chunk_consumed = asyncio.Event()
+        self.release_final_chunk = asyncio.Event()
+
+    async def iter_chunked(self, _size: int):
+        yield b"1234"
+        self.first_chunk_consumed.set()
+        await self.release_final_chunk.wait()
+        yield b"567890"
+
+
+class _SlowResponse(_FakeResponse):
+    def __init__(self, content: _SlowContent):
+        self.content = content
+        self.headers = {
+            "Content-Length": "10",
+            "Content-Type": "audio/mpeg",
+        }
+
+
+class _SlowSession:
+    def __init__(self, content: _SlowContent):
+        self._response = _SlowResponse(content)
+
+    def get(self, _url: str):
+        return self._response
+
+
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [
+        ("bytes=0-", (0, 9)),
+        ("bytes=2-5", (2, 5)),
+        ("bytes=-4", (6, 9)),
+    ],
+)
+def test_parse_byte_range(header, expected):
+    assert DlnaHttpServer._parse_byte_range(header, 10) == expected
+
+
 @pytest.mark.asyncio
 async def test_large_download_switches_to_streaming_passthrough():
     """Large responses are proxied instead of being rejected or held in RAM."""
@@ -120,6 +161,40 @@ async def test_streaming_passthrough_preserves_range_requests():
         await upstream.close()
         if server._proxy_session:
             await server._proxy_session.close()
+
+
+@pytest.mark.asyncio
+async def test_small_media_streams_before_full_download_completes():
+    """First audio bytes are relayed while the rest is still downloading."""
+    slow_content = _SlowContent()
+    buffer = MediaBuffer("http://example.com/audio")
+    download_task = asyncio.create_task(buffer._download(_SlowSession(slow_content)))
+    await asyncio.wait_for(slow_content.first_chunk_consumed.wait(), timeout=1)
+
+    server = DlnaHttpServer("127.0.0.1", 8200, AppConfig())
+    server._media_buffers["buffer"] = buffer
+    server._proxy_tokens["token"] = ("buffer", "uuid:test")
+
+    proxy_app = web.Application()
+    proxy_app.router.add_route("*", "/media/{token}", server._handle_media_request)
+    proxy = TestClient(TestServer(proxy_app, host="127.0.0.1"))
+    await proxy.start_server()
+
+    try:
+        response = await proxy.get("/media/token")
+        first_chunk = await asyncio.wait_for(response.content.readexactly(4), timeout=1)
+
+        assert first_chunk == b"1234"
+        assert buffer.is_complete is False
+
+        slow_content.release_final_chunk.set()
+        assert await response.read() == b"567890"
+        await asyncio.wait_for(download_task, timeout=1)
+        assert buffer.is_complete is True
+    finally:
+        slow_content.release_final_chunk.set()
+        await proxy.close()
+        await asyncio.gather(download_task, return_exceptions=True)
 
 
 @pytest.mark.asyncio

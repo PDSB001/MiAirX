@@ -87,6 +87,7 @@ class AppConfig(BaseModel):
     hostname: str = ""
     dlna_port: int = 8200
     web_port: int = 8300
+    airplay_port_start: int = 7000
     conf_path: str = "conf"
     verbose: bool = False
     proxy_enabled: bool = False
@@ -124,15 +125,9 @@ class AppConfig(BaseModel):
     @staticmethod
     def _detect_local_ip() -> str:
         """Auto-detect local LAN IP address."""
-        import socket
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            s.close()
-            return ip
-        except Exception:
-            return "127.0.0.1"
+        from miairx.config.discovery import detect_local_ip
+
+        return detect_local_ip()
 
     @property
     def log_file(self) -> str:
@@ -174,3 +169,29 @@ class AppConfig(BaseModel):
             if speaker.enabled:
                 result.append(speaker)
         return result
+
+    def get_airplay_ports(self, speaker_index: int) -> tuple[int, int]:
+        """Return the fixed RTSP and audio HTTP ports for a speaker.
+
+        Each enabled speaker owns two consecutive TCP ports. Keeping the
+        allocation deterministic makes host-networked Docker deployments and
+        LAN firewall rules practical.
+        """
+        if speaker_index < 0:
+            raise ValueError("speaker_index must be non-negative")
+
+        rtsp_port = self.airplay_port_start + speaker_index * 2
+        audio_port = rtsp_port + 1
+        if self.airplay_port_start < 1 or audio_port > 65535:
+            raise ValueError(
+                "AirPlay port range exceeds 1-65535; lower airplay_port_start "
+                "or configure fewer speakers"
+            )
+        if rtsp_port in {self.dlna_port, self.web_port} or audio_port in {
+            self.dlna_port,
+            self.web_port,
+        }:
+            raise ValueError(
+                "AirPlay ports overlap the DLNA or Web management port"
+            )
+        return rtsp_port, audio_port

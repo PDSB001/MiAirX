@@ -27,6 +27,39 @@ async def test_airplay_zeroconf_is_ipv4_only(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_airplay_services_receive_fixed_port_pairs(monkeypatch):
+    """Docker firewall rules rely on deterministic per-speaker TCP ports."""
+    calls = []
+
+    class FakeSpeakerAirplay:
+        def __init__(self, **kwargs):
+            calls.append(kwargs)
+
+        async def start(self):
+            return None
+
+    monkeypatch.setattr(app_module, "Zeroconf", MagicMock())
+    monkeypatch.setattr(app_module, "SpeakerAirplay", FakeSpeakerAirplay)
+
+    application = Application(
+        AppConfig(
+            hostname="192.168.1.20",
+            mi_did="speaker-a,speaker-b",
+            airplay_port_start=7000,
+        )
+    )
+    application.speaker_manager = MagicMock()
+    application.speaker_manager.get_controller_by_did.return_value = MagicMock()
+
+    await application._start_airplay_server()
+
+    assert [(call["rtsp_port"], call["audio_port"]) for call in calls] == [
+        (7000, 7001),
+        (7002, 7003),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_partial_startup_is_cleaned_up():
     """A startup failure must close the HTTP session even before running."""
     application = Application(AppConfig(hostname="127.0.0.1"))

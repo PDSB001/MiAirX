@@ -1,0 +1,19 @@
+#!/bin/bash
+
+container_name="fnos-miairx"
+
+case "${1:-}" in
+    start|stop)
+        # Docker 项目资源负责启动和停止 Compose 项目。
+        exit 0
+        ;;
+    status)
+        if [ "$(docker inspect --format '{{.State.Running}}' "$container_name" 2>/dev/null || true)" = "true" ]; then
+            exit 0
+        fi
+        exit 3
+        ;;
+    *)
+        exit 1
+        ;;
+esac

@@ -1,337 +1,250 @@
 <p align="center">
-  <img src="docs/images/logo.png" alt="MiAirX" width="200">
+  <img src="docs/images/logo.png" alt="MiAirX" width="190">
 </p>
 
 <h1 align="center">MiAirX</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white">
-  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square">
-  <img src="https://img.shields.io/github/v/release/PDSB001/MiAirX?style=flat-square">
-  <img src="https://img.shields.io/badge/Platform-Win%20|%20Mac%20|%20Linux-lightgrey?style=flat-square">
+  <strong>把小米音箱变成局域网里的 DLNA / AirPlay 音频接收器</strong><br>
+  QQ 音乐、网易云音乐和支持投放的客户端，可以直接把声音交给小爱音箱。
 </p>
 
 <p align="center">
-  <b>让 QQ音乐 · 网易云音乐 · iOS 直接投送到你的小爱音箱</b><br>
-  不改固件、不改 App，纯协议翻译。
+  <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+">
+  <img src="https://img.shields.io/github/v/release/PDSB001/MiAirX?style=flat-square" alt="GitHub release">
+  <img src="https://img.shields.io/badge/Docker-Linux%20host%20network-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker Linux">
+  <img src="https://img.shields.io/badge/License-MIT-2f855a?style=flat-square" alt="MIT license">
 </p>
 
 <p align="center">
-  <a href="#-快速开始">快速开始</a> ·
-  <a href="#-原理">原理</a> ·
-  <a href="#-web-管理界面">Web界面</a> ·
-  <a href="#-docker">Docker</a> ·
-  <a href="docs/ARCHITECTURE.md">架构详解</a> ·
-  <a href="docs/SIMPLE.md">大白话版</a>
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#管理台">管理台</a> ·
+  <a href="docs/DOCKER.md">Docker</a> ·
+  <a href="docs/FIREWALL.md">防火墙</a> ·
+  <a href="docs/CONFIGURATION.md">配置</a> ·
+  <a href="docs/ARCHITECTURE.md">架构</a> ·
+  <a href="docs/DEVELOPMENT.md">开发</a>
 </p>
 
 ---
 
-## 🎯 解决的痛点
+## 它解决什么问题
 
-买了小爱音箱，想用 QQ 音乐、网易云音乐的"投屏"功能，但死活搜不到你的音箱。
+小米音箱使用小米自己的 MiNA 接口，而大多数音乐客户端使用 DLNA/UPnP 或 AirPlay。MiAirX 在局域网里同时扮演接收器、协议翻译器和媒体中转站：
 
-**因为小爱音箱说"小米语"（MiNA API），音乐 App 说"通用语"（DLNA），双方互不认识。**
-
-MiAirX 在你电脑上扮演一个翻译官：
-
-```
-QQ音乐 ──DLNA──▶  MiAirX  ──MiNA API──▶  小爱音箱
+```text
+音乐 App ── DLNA / AirPlay ──▶ MiAirX ── MiNA API ──▶ 小米音箱
 ```
 
-| 不用 MiAirX | 用了 MiAirX |
+它不会修改音箱固件，也不需要在手机或音箱上安装插件。
+
+### 当前能力
+
+- 为每台已选音箱发布独立的 DLNA 渲染器
+- 支持播放、暂停、停止、音量、进度查询和 Seek
+- 支持大媒体文件流式代理，避免整文件常驻内存
+- 支持不兼容格式的 FFmpeg 转换与 Seek 回退
+- 提供 AirPlay 1 / RAOP 接收服务
+- 支持多音箱、账号密码或 Cookie 登录
+- 提供 React 管理台，支持桌面与移动端
+- 支持 Windows、macOS、Linux；Docker 推荐 Linux 主机网络
+
+> AirPlay 的实际兼容性会受发送端版本、网络和音频格式影响；DLNA 是目前更稳定的投放路径。
+
+## 快速开始
+
+### 1. 安装
+
+需要 Python 3.12 或更高版本。
+
+#### 从 Release 安装
+
+从 [GitHub Releases](https://github.com/PDSB001/MiAirX/releases) 下载最新 `.whl`：
+
+```bash
+python -m pip install ./miairx-x.y.z-py3-none-any.whl
+miairx
+```
+
+Windows 也可以使用 Python Launcher：
+
+```powershell
+py -3 -m pip install .\miairx-x.y.z-py3-none-any.whl
+miairx
+```
+
+#### 从源码运行
+
+```bash
+git clone https://github.com/PDSB001/MiAirX.git
+cd MiAirX
+python -m pip install -e .
+miairx
+```
+
+仓库内的 `python start.py` 和 Windows `start.bat` 也可作为便捷启动入口。
+
+### 2. 完成首次配置
+
+MiAirX 可以在没有账号和音箱的情况下先启动管理台：
+
+1. 打开 `http://127.0.0.1:8300`
+2. 在「系统设置」填写小米账号密码，或填写 Cookie 的 `userId` 与 `passToken`
+3. 进入「设备管理」，刷新并选择音箱
+4. 保存后手动重启 MiAirX
+
+管理台不会回显已保存的密码和 Cookie。配置默认保存在 `conf/config.json`，不要把该文件提交到 Git。
+
+### 3. 开始投放
+
+- QQ 音乐：播放页 → 投屏 → 选择对应的 `XiaoAI` 设备
+- 网易云音乐：播放页 → 投屏/连接设备 → 选择对应音箱
+- iOS/macOS：在 AirPlay 音频设备列表中选择对应音箱
+- 管理台：在「播放控制」中直接输入音频 URL
+
+手机、运行 MiAirX 的主机和音箱必须处在同一局域网，且客户端之间不能被 AP 隔离。
+
+## 管理台
+
+默认地址：`http://主机局域网IP:8300`
+
+| 页面 | 能力 |
 |---|---|
-| 投屏列表空空如也 | 你的音箱出现在列表中 |
-| 只能对着音箱喊"小爱同学" | 手机选歌 → 点投屏 → 音箱出声 |
+| 播放控制 | 查看渲染器状态、URL 投放、暂停、停止、音量和播放进度 |
+| 设备管理 | 从小米云设备中选择一个或多个音箱 |
+| 系统设置 | 登录凭据、广播地址、端口、代理、恢复、音量、语音和诊断设置 |
 
----
+新版管理台由 React、TypeScript、Vite 和 TanStack Query 构建。生产环境中只部署编译后的静态文件，不需要 Node.js。
 
-## 🏗️ 原理
+旧版单文件管理页仍保留在 `http://主机IP:8300/legacy`，可在新版静态资源异常时用于恢复配置。
 
-<p align="center">
-  <img src="docs/images/architecture.png" alt="架构图" width="900">
-</p>
+> 管理台当前没有登录认证，只应在可信局域网中使用。不要把 8300 端口直接暴露到公网。
 
-| 阶段 | 客户端行为 | MiAirX 行为 |
-|------|------------|------------|
-| ① **发现** | "附近有音箱吗？"（M-SEARCH 组播） | "有！小爱音箱在这里"（SSDP 响应） |
-| ② **投送** | "播这首歌，链接是 xxx"（SOAP） | 下载音频 → 生成局域网链接 → 调 MiNA API 让音箱播放 |
-| ③ **追踪** | "播到第几秒了？"（GetPositionInfo） | 内部精确跟踪位置，不被小米云 API 误导 |
+## Docker
 
-> 完整技术细节见 [ARCHITECTURE.md](docs/ARCHITECTURE.md)，通俗版见 [SIMPLE.md](docs/SIMPLE.md)
-
----
-
-## 🚀 快速开始
-
-### 方式一：whl 安装（推荐，零依赖）
-
-1. 打开 [Releases](https://github.com/PDSB001/MiAirX/releases) 页面
-2. 下载最新的 `.whl` 文件
-3. 安装并启动：
-
-```bash
-pip install miairx-x.x.x-py3-none-any.whl
-miairx
-```
-
-> 依赖自动装，装完直接 `miairx` 启动。
-
-### 方式二：源码 / tar.gz（需手动装依赖）
-
-git clone 或从 Releases 下载 `tar.gz` 解压后，**先手动装依赖**，再用 `start.py` 启动：
-
-```bash
-# 1. 装依赖
-pip install aiohttp miservice-fork zeroconf pycryptodome structlog pydantic pydantic-settings
-
-# 2. 启动
-python start.py
-```
-
-### 方式三：Docker（仅 Linux）
+DLNA SSDP 和 AirPlay mDNS 都依赖局域网组播。Docker 推荐仅在 Linux 上使用 `host` 网络：
 
 ```bash
 mkdir -p conf
-docker run -d --name miairx \
+docker run -d \
+  --name miairx \
   --network host \
-  -e MI_USER=你的小米账号 \
-  -e MI_PASS=你的密码 \
-  -v $(pwd)/conf:/app/conf \
+  --restart unless-stopped \
+  -e MI_USER='你的小米账号' \
+  -e MI_PASS='你的小米密码' \
+  -v "$(pwd)/conf:/app/conf" \
   ghcr.io/pdsb001/miairx:master
 ```
 
-> 启动后打开 `http://你的Linux IP:8300`。Windows/macOS 不建议用 Docker（组播不通）。
+然后访问 `http://Linux主机局域网IP:8300`。
 
-### 启动命令速查
+Windows/macOS 的 Docker Desktop 运行在虚拟机网络中，`network_mode: host` 通常无法让 SSDP/mDNS 正常进入物理局域网，因此更推荐直接运行 wheel。
 
-| 安装方式 | 启动命令 |
-|----------|----------|
-| whl | `miairx` 或 `python -m miairx` |
-| 源码 / tar.gz | `python start.py` |
-| Docker | `docker run ...`（见上方） |
+完整说明、Compose 用法和排障步骤见 [Docker 指南](docs/DOCKER.md)。
 
----
+## 配置
 
-### 无配置启动（零门槛）
+配置优先级为：
 
-**不需要写任何配置文件**。直接运行：
-
-```bash
-python start.py    # 或者 start.bat
+```text
+命令行参数 > 环境变量 > conf/config.json > 默认值
 ```
 
-第一次启动会自动弹出 Web 界面引导你输入小米账号密码，之后一切就绪。
+常用环境变量：
 
-```json
-// conf/config.json — 自动生成的默认配置，不用改
-{
-  "account":  "",
-  "password": "",
-  "mi_did":   "",
-  "hostname": ""
-}
-```
+| 环境变量 | 对应配置 | 说明 |
+|---|---|---|
+| `MI_USER` | `account` | 小米账号 |
+| `MI_PASS` | `password` | 小米密码 |
+| `MI_DID` | `mi_did` | 一个或多个 DID，逗号分隔 |
+| `MIAIR_HOSTNAME` | `hostname` | 其他设备可访问的主机 IPv4 地址 |
+| `MIAIR_DLNA_PORT` | `dlna_port` | DLNA HTTP 端口，默认 8200 |
+| `MIAIR_WEB_PORT` | `web_port` | 管理台端口，默认 8300 |
+| `MIAIR_AIRPLAY_PORT_START` | `airplay_port_start` | AirPlay TCP 起始端口，默认 7000 |
+| `MIAIR_VERBOSE` | `verbose` | `true/1/yes` 开启详细日志 |
 
-流程：`启动 → 浏览器打开 http://localhost:8300 → 设置页填账号密码 → 设备管理选音箱 → 保存重启 → 投！`
+全部字段和安全说明见 [配置参考](docs/CONFIGURATION.md)。
 
----
+## 网络与端口
 
-### 配置（可选）
+| 用途 | 默认端口/协议 | 说明 |
+|---|---|---|
+| SSDP | UDP 1900 组播 | DLNA 设备发现 |
+| DLNA HTTP / 媒体代理 | TCP 8200 | 设备描述、控制和媒体传输 |
+| Web 管理台 | TCP 8300 | 管理页面和 JSON API |
+| AirPlay mDNS | UDP 5353 | AirPlay 服务发现 |
+| AirPlay RTSP/音频 | TCP 7000 起 | 每台启用音箱固定占用两个连续端口 |
 
-如果你喜欢手动配，编辑 `conf/config.json`：
+默认情况下，第一台音箱使用 TCP 7000/7001，第二台使用 7002/7003。Docker/NAS 可以统一放行 TCP 7000–7099，覆盖最多 50 台音箱；修改起始端口时应同步平移防火墙规则。
 
-```json
-{
-  "account":  "你的小米账号",
-  "password": "你的密码",
-  "mi_did":   "音箱的DID",
-  "hostname": "192.168.x.x"
-}
-```
+只应对可信局域网放行：TCP 8200、TCP 8300、UDP 1900、UDP 5353 和 AirPlay TCP 端口段。SSDP 的组播方向、`docker pull` 手动部署、UFW、firewalld、Windows 和 NAS 规则见 [防火墙与局域网发现](docs/FIREWALL.md)。
 
-| 字段 | 必填 | 说明 |
-|------|------|------|
-| `account` | ✅ | 小米账号（手机号/邮箱） |
-| `password` | ✅ | 小米密码 |
-| `mi_did` | ❌ | 音箱设备 ID，**可以不填，去 Web 界面选** |
-| `hostname` | ❌ | 电脑 LAN IP，**留空自动检测** |
-
----
-
-### 启动
-
-根据你的安装方式选择对应命令：
-
-```bash
-# whl 安装 → 直接用命令
-miairx
-
-# 源码 / tar.gz → start.py
-python start.py
-
-# Windows → 双击
-start.bat
-```
-
-启动成功后会看到：
-
-```
-INFO  MiAirX v1.0.4
-INFO  Hostname: 192.168.1.172
-INFO  DLNA  HTTP server on :8200
-INFO  Web  management on :8300
-INFO  Speakers registered: 你的小爱音箱
-```
-
----
-
-### 投！
-
-#### 📱 QQ 音乐
-
-1. 选歌 → 播放界面右上角 ··· → 投屏
-2. 点 **[你的设备名]**
-3. 音箱出声
-
-#### 🎵 网易云音乐
-
-1. 选歌 → 播放界面 → 分享 → 投屏到设备
-2. 选 **[你的设备名]**
-3. 音箱出声
-
-#### 🍎 iOS
-
-1. 控制中心 → 隔空播放
-2. 选 **[你的设备名]**
-3. 任意 App 音频都会路由到音箱
-
-> 💡 设备名默认为 `XiaoAI [硬件型号]`，可在 Web 界面自定义。
-
----
-
-## 🎛️ Web 管理界面
-
-启动后访问 **http://localhost:8300**
-
-| 标签 | 功能 |
-|------|------|
-| 状态 | 服务运行状态、网络信息、音箱在线 |
-| 媒体控制 | 播放/暂停/停止、音量、进度跳转 |
-| 设备管理 | 已发现音箱、启用/禁用、复制 DID |
-| 设置 | 配置修改、重启服务 |
-
----
-
-## 🗂️ 项目结构
-
-```
-MiAirX/
-├── start.py / start.bat       # 启动入口
-├── docker-compose.yml         # Docker 编排
-├── Dockerfile
-├── conf/config.json           # 配置文件
-├── src/miairx/
-│   ├── cli.py                 # CLI
-│   ├── app.py                 # 核心编排
-│   ├── const.py               # DLNA 常量
-│   ├── auth/                  # 小米账号认证
-│   ├── config/                # 配置管理
-│   ├── core/                  # 基础设施
-│   ├── media/                 # 音频代理 & 转码
-│   ├── speaker/               # 音箱控制
-│   ├── protocols/
-│   │   ├── dlna/              # DLNA/UPnP
-│   │   └── airplay/           # AirPlay
-│   └── web/                   # Web 管理 UI
-└── tests/
-```
-
----
-
-## 🐳 Docker
-
-> ⚠️ DLNA 依赖 UDP 组播，**网桥下客户端搜不到设备**。Docker 仅限 Linux + `--network host`。
-
-**docker-compose（推荐）**
-
-编辑 `docker-compose.yml` 填入账号密码，然后：
-
-```bash
-mkdir -p conf
-docker compose up -d
-```
-
-**docker run**
-
-```bash
-docker run -d --name miairx \
-  --network host \
-  -e MI_USER=你的小米账号 \
-  -e MI_PASS=你的密码 \
-  -v $(pwd)/conf:/app/conf \
-  ghcr.io/pdsb001/miairx:master
-```
-
-启动后打开 `http://你的Linux IP:8300` → 设备管理 → 选音箱即可。
-
----
-
-## 📦 依赖
-
-| 依赖 | 用途 |
-|------|------|
-| [miservice-fork](https://github.com/KiriChen-Wind/miservice-fork) | 小米云 API |
-| aiohttp | 异步 HTTP |
-| zeroconf | AirPlay mDNS |
-| pycryptodome | AirPlay 加密 |
-| structlog | 结构化日志 |
-| pydantic | 配置验证 |
-
----
-
-## 💡 常见问题
+## 常见问题
 
 <details>
-<summary><b>Q: 投屏列表里看不到音箱？</b></summary>
+<summary><strong>投屏列表里没有 MiAirX 音箱</strong></summary>
 
-- 电脑和音箱**同一 Wi-Fi**
-- 防火墙放行 8200（TCP+UDP）、8300（TCP）
-- 关闭 VPN/代理试试
-- Docker 用户确认用了 `--network host`
+- 确认手机、主机和音箱处于同一子网
+- 关闭 VPN、代理、访客网络和 AP 隔离后重试
+- 检查 `hostname` 是否为主机真实的局域网 IPv4，而不是 `127.0.0.1`
+- 按 [防火墙指南](docs/FIREWALL.md) 放行 SSDP 与对应业务端口
+- Docker 必须使用 Linux `--network host`
 </details>
 
 <details>
-<summary><b>Q: 播放了但没有声音？</b></summary>
+<summary><strong>能看到设备，但播放没有声音</strong></summary>
 
-- 检查音箱音量
-- Web UI 设备管理确认音箱已启用
-- 看控制台日志中的错误
+- 在管理台确认选择的是正确 DID
+- 检查账号或 Cookie 是否仍然有效
+- 确认音箱本身在线且音量不为零
+- 打开详细日志，查看 MiNA 请求和媒体代理错误
+- 特殊格式可安装 FFmpeg，Docker 镜像已内置 FFmpeg
 </details>
 
 <details>
-<summary><b>Q: 进度条不准确？</b></summary>
+<summary><strong>大文件播放失败或很久才出声</strong></summary>
 
-网易云音乐等客户端不轮询进度，依赖 UPnP 事件推送。已知限制。
+当前版本会对已知大小超过 32 MiB 的媒体使用流式代理。若仍失败，检查源站是否允许服务器访问、是否正确响应 Range/Content-Length，以及音箱是否能访问配置中的 `hostname:8200`。
 </details>
 
----
+<details>
+<summary><strong>启动时报端口只能使用一次</strong></summary>
 
-## 🧪 开发
+已有 MiAirX 或其他程序占用了 8200/8300。停止旧进程，或通过配置/命令行更换端口。不要同时启动 `start.py`、`miairx` 和 Docker 实例。
+</details>
+
+<details>
+<summary><strong>配置保存后没有立即生效</strong></summary>
+
+设备、端口和部分运行行为需要重建服务。管理台保存成功后，请手动重启 MiAirX。
+</details>
+
+## 开发与文档
+
+- [文档导航](docs/README.md)
+- [配置参考](docs/CONFIGURATION.md)
+- [Docker 指南](docs/DOCKER.md)
+- [架构说明](docs/ARCHITECTURE.md)
+- [开发指南](docs/DEVELOPMENT.md)
+- [通俗原理](docs/SIMPLE.md)
+- [项目交接](docs/PROJECT_HANDOVER.md)
+
+最小开发检查：
 
 ```bash
-pip install -e ".[dev]"
-pytest --cov=src
+python -m pip install -e ".[dev]"
+pytest tests -q
+
+cd frontend
+pnpm install --frozen-lockfile
+pnpm check
+pnpm test:e2e
 ```
 
----
+## 致谢
 
-## 🙏 致谢
+核心 DLNA 状态机及 MiNA API 桥接思路源自 [MiAir](https://github.com/KiriChen-Wind/MiAir)，感谢原作者和相关开源项目贡献者。
 
-核心 DLNA 状态机及 MiNA API 桥接逻辑源自 [MiAir](https://github.com/KiriChen-Wind/MiAir)，感谢 **KiriChen-Wind**。
+## 许可证
 
----
-
-## 📄 许可证
-
-MIT © 2025 KiriChen-Wind (MiAir) | 2026 MiAirX Contributors
+[MIT](LICENSE) © 2025 KiriChen-Wind · 2026 MiAirX Contributors

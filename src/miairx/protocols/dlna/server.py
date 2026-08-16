@@ -530,7 +530,7 @@ class DlnaHttpServer:
             log.debug(f"Initial event failed for {sid}: {e}")
 
     async def _handle_media_request(self, request: web.Request) -> web.StreamResponse:
-        """Handle media proxy request with Range support (zero-copy via memoryview)."""
+        """Handle media requests without waiting for a full-track download."""
         token = request.match_info.get("token", "")
 
         # Find buffer for this token
@@ -546,12 +546,15 @@ class DlnaHttpServer:
         if buffer.is_passthrough:
             return await self._handle_passthrough_request(request, buffer)
 
-        # Wait for download to complete (like original project)
+        # Only wait for upstream metadata. Small tracks continue buffering in
+        # the background while their available bytes are relayed to the
+        # speaker, which removes the full-download delay before first sound.
         if not buffer.is_complete and not buffer.is_error:
-            log.info(f"Waiting for download to complete: {buffer.url[:80]}...")
-            success = await buffer.wait_ready(timeout=120)
+            success = await buffer.wait_headers(timeout=10)
             if not success:
-                return web.Response(status=504, text="Download timeout")
+                if buffer.is_error:
+                    return web.Response(status=502, text=buffer.error_message)
+                return web.Response(status=504, text="Upstream header timeout")
 
         if buffer.is_passthrough:
             return await self._handle_passthrough_request(request, buffer)
@@ -559,38 +562,101 @@ class DlnaHttpServer:
         if buffer.is_error:
             return web.Response(status=502, text=buffer.error_message)
 
-        # Use memoryview for zero-copy — avoids duplicating the entire buffer
-        data_view = memoryview(buffer.data)
-        total_size = len(data_view)
-        content_type = buffer.content_type
+        return await self._handle_buffered_stream_request(request, buffer)
 
-        # Handle Range request (also zero-copy)
+    @staticmethod
+    def _parse_byte_range(range_header: str, total_size: int) -> tuple[int, int]:
+        """Parse a single HTTP byte range against a known total size."""
+        if not range_header.startswith("bytes=") or "," in range_header:
+            raise ValueError("unsupported range")
+
+        range_spec = range_header[6:].strip()
+        start_str, end_str = range_spec.split("-", maxsplit=1)
+
+        if not start_str:
+            suffix_length = int(end_str)
+            if suffix_length <= 0:
+                raise ValueError("invalid suffix range")
+            start = max(0, total_size - suffix_length)
+            end = total_size - 1
+        else:
+            start = int(start_str)
+            end = int(end_str) if end_str else total_size - 1
+
+        if start < 0 or start >= total_size or end < start:
+            raise ValueError("range not satisfiable")
+        return start, min(end, total_size - 1)
+
+    async def _handle_buffered_stream_request(
+        self, request: web.Request, buffer: MediaBuffer
+    ) -> web.StreamResponse:
+        """Relay buffered media progressively while the upstream download runs."""
+        total_size = buffer.content_length or len(buffer.data)
+        if total_size <= 0:
+            return web.Response(status=502, text="Upstream content length unavailable")
+
         range_header = request.headers.get("Range", "")
-        if range_header:
-            return self._handle_range_request(
-                request, data_view, content_type, range_header
-            )
-
-        # Full request
+        status = 200
+        start = 0
+        end = total_size - 1
         headers = {
-            "Content-Type": content_type,
-            "Content-Length": str(total_size),
+            "Content-Type": buffer.content_type or "application/octet-stream",
             "Accept-Ranges": "bytes",
         }
 
-        response = web.StreamResponse(status=200, headers=headers)
+        if range_header:
+            try:
+                start, end = self._parse_byte_range(range_header, total_size)
+            except (TypeError, ValueError):
+                return web.Response(
+                    status=416,
+                    headers={"Content-Range": f"bytes */{total_size}"},
+                    text="Range not satisfiable",
+                )
+            status = 206
+            headers["Content-Range"] = f"bytes {start}-{end}/{total_size}"
+
+        headers["Content-Length"] = str(end - start + 1)
+        response = web.StreamResponse(status=status, headers=headers)
         await response.prepare(request)
 
-        # Send data in chunks — memoryview slices are zero-copy
-        CHUNK = 65536
-        pos = 0
-        while pos < total_size:
-            chunk_end = min(pos + CHUNK, total_size)
-            await response.write(data_view[pos:chunk_end])
-            pos = chunk_end
+        if request.method == "HEAD":
+            await response.write_eof()
+            return response
 
-        await response.write_eof()
-        return response
+        position = start
+        try:
+            while position <= end:
+                chunk = await buffer.read_available(
+                    position,
+                    min(64 * 1024, end - position + 1),
+                )
+                if chunk:
+                    await response.write(chunk)
+                    position += len(chunk)
+                    continue
+
+                if buffer.is_error:
+                    log.warning(
+                        "Media download failed while streaming %s: %s",
+                        buffer.url[:80],
+                        buffer.error_message,
+                    )
+                    response.force_close()
+                    return response
+                if buffer.is_complete:
+                    break
+
+                if not await buffer.wait_for_data(position, timeout=120):
+                    log.warning("Media stream stalled: %s", buffer.url[:80])
+                    response.force_close()
+                    return response
+
+            await response.write_eof()
+            return response
+        except ConnectionResetError:
+            log.debug("Buffered media streaming client disconnected")
+            return response
 
     async def _handle_passthrough_request(
         self, request: web.Request, buffer: MediaBuffer

@@ -1,0 +1,15 @@
+appname               = miairx
+version               = 1.0.4
+display_name          = MiAirX
+desc                  = 将 DLNA 和 AirPlay 音频投放到小爱音箱
+platform              = all
+source                = thirdparty
+maintainer            = pdsb001
+maintainer_url        = https://github.com/pdsb001/MiAirX
+distributor           = pdsb001
+distributor_url       = https://github.com/pdsb001/MiAirX
+desktop_uidir         = ui
+desktop_applaunchname = miairx.Application
+service_port          = 8300
+checkport             = true
+ctl_stop              = true

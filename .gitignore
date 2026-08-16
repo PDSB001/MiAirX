@@ -32,3 +32,12 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Frontend
+frontend/node_modules/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# fnOS build artifacts
+*.fpk

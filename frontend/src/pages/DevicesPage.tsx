@@ -20,9 +20,9 @@ export function DevicesPage() {
   const chosen = selected ?? new Set<string>();
   const apply = useMutation({
     mutationFn: () => api.saveConfig({ mi_did: [...chosen].join(",") }),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.config }), queryClient.invalidateQueries({ queryKey: queryKeys.speakers })]);
-      showToast("设备选择已保存，重启 MiAirX 后生效", "success");
+      showToast(result.restart_required ? "设备选择已保存，重启后生效" : "设备选择已保存并自动生效", "success");
     },
     onError: (error: Error) => showToast(error.message, "error"),
   });

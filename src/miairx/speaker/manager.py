@@ -71,6 +71,19 @@ class SpeakerManager:
             except Exception as e:
                 log.warning(f"Failed to stop speaker {controller.speaker.name}: {e}")
 
+    async def rebuild(self) -> None:
+        """Recreate controllers from the current configuration.
+
+        Used after a live configuration change (e.g. a different DID list).
+        Stops and clears existing controllers, then re-initialises from the
+        updated speaker set so the running service matches the new config
+        without a full process restart.
+        """
+        await self.stop_all()
+        self._controllers.clear()
+        await self.initialize()
+        log.info(f"Rebuilt speaker controllers: {len(self._controllers)} speakers")
+
     async def set_volume_all(self, volume: int) -> None:
         """Set volume for all speakers."""
         for controller in self._controllers.values():

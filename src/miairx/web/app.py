@@ -10,6 +10,12 @@ from aiohttp import web
 from miairx import __version__
 from miairx.config.models import AppConfig
 from miairx.config.store import ConfigStore
+from miairx.web.auth import (
+    auth_middleware,
+    handle_auth_login,
+    handle_auth_logout,
+    handle_auth_status,
+)
 
 if TYPE_CHECKING:
     from miairx.app import Application
@@ -31,7 +37,7 @@ def create_web_app(config: "AppConfig", app: "Application", config_store: Config
     Returns:
         Configured aiohttp web application
     """
-    web_app = web.Application()
+    web_app = web.Application(middlewares=[auth_middleware])
     
     # Store references
     web_app["config"] = config
@@ -42,6 +48,9 @@ def create_web_app(config: "AppConfig", app: "Application", config_store: Config
     web_app.router.add_get("/", handle_index)
     web_app.router.add_get("/legacy", handle_legacy_index)
     web_app.router.add_get("/favicon.ico", handle_favicon)
+    web_app.router.add_get("/api/auth/status", handle_auth_status)
+    web_app.router.add_post("/api/auth/login", handle_auth_login)
+    web_app.router.add_post("/api/auth/logout", handle_auth_logout)
     web_app.router.add_get("/api/status", handle_status)
     web_app.router.add_get("/api/config", handle_get_config)
     web_app.router.add_post("/api/config", handle_save_config)
@@ -121,6 +130,7 @@ async def handle_get_config(request: web.Request) -> web.Response:
         "enable_voice_control": config.enable_voice_control,
         "auto_restart": config.auto_restart,
         "voice_poll_interval": config.voice_poll_interval,
+        "web_password": "***" if config.web_password else "",
     }
     
     return web.json_response(config_data)
@@ -132,6 +142,7 @@ async def handle_save_config(request: web.Request) -> web.Response:
         data = await request.json()
         config = request.app["config"]
         config_store = request.app["config_store"]
+        main_app = request.app.get("app")
 
         # Validate the complete port layout before mutating the live config.
         # AirPlay consumes two consecutive TCP ports for every configured DID.
@@ -150,7 +161,34 @@ async def handle_save_config(request: web.Request) -> web.Response:
         )
         for speaker_index in range(max(1, speaker_count)):
             candidate.get_airplay_ports(speaker_index)
-        
+
+        # Track which fields actually change so we can hot-reload only the
+        # affected components after persisting.
+        changed: set[str] = set()
+        for field in (
+            "account", "mi_did", "cookie", "hostname", "dlna_port",
+            "web_port", "airplay_port_start", "verbose", "proxy_enabled",
+            "auto_play_on_set_uri", "auto_resume_on_interrupt",
+            "resume_delay_seconds", "default_volume", "follow_device_volume",
+            "enable_voice_control", "auto_restart", "voice_poll_interval",
+        ):
+            if field in data:
+                old = getattr(config, field)
+                new = data[field]
+                if field in ("dlna_port", "web_port", "airplay_port_start",
+                             "resume_delay_seconds", "default_volume",
+                             "voice_poll_interval"):
+                    new = int(new)
+                else:
+                    new = bool(new)
+                if old != new:
+                    changed.add(field)
+
+        # Sensitive fields are handled separately below.
+        if "password" in data and data["password"] not in ("", "***"):
+            if config.password != data["password"]:
+                changed.add("password")
+
         # Update config fields
         if "account" in data:
             config.account = data["account"]
@@ -164,7 +202,6 @@ async def handle_save_config(request: web.Request) -> web.Response:
                 config.get_speaker(did)
             # Try to update speaker info from cloud
             try:
-                main_app = request.app.get("app")
                 if main_app and getattr(main_app, "auth", None):
                     await main_app.auth.update_speakers_info()
             except Exception:
@@ -199,16 +236,24 @@ async def handle_save_config(request: web.Request) -> web.Response:
             config.auto_restart = bool(data["auto_restart"])
         if "voice_poll_interval" in data:
             config.voice_poll_interval = int(data["voice_poll_interval"])
-        
+        if "web_password" in data and data["web_password"] not in ("", "***"):
+            config.web_password = data["web_password"]
+
         # Save config to file
         await config_store.save(config)
-        
+
+        # Hot-reload the affected service components so the change takes
+        # effect without a manual restart.
+        restart_required = False
+        if main_app and hasattr(main_app, "reload_after_config_change"):
+            restart_required = await main_app.reload_after_config_change(changed)
+
         return web.json_response({
             "success": True,
             "message": "Configuration saved successfully",
-            "restart_required": True,
+            "restart_required": restart_required,
         })
-        
+
     except Exception as e:
         log.error(f"Failed to save config: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=400)

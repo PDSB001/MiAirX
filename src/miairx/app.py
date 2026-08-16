@@ -233,6 +233,11 @@ class Application:
         """Start DLNA server components."""
         log.info("Starting DLNA server...")
         
+        # Clear stale renderer mappings from a previous run/reload so a
+        # reloaded speaker set does not leave orphaned udn -> renderer entries.
+        self.renderers.clear()
+        self._did_to_udn.clear()
+        
         # Create SSDP server
         self.ssdp = SsdpServer(self.config.hostname, self.config.dlna_port)
         
@@ -281,6 +286,9 @@ class Application:
     async def _start_airplay_server(self) -> None:
         """Start AirPlay server components."""
         log.info("Starting AirPlay server...")
+        
+        # Clear stale services from a previous run/reload.
+        self._airplay_services.clear()
         
         # Create shared Zeroconf instance
         # MiAirX advertises LAN services over IPv4. Restrict zeroconf to IPv4
@@ -514,6 +522,56 @@ class Application:
         log.info("Restarting AirPlay server...")
         await self._stop_airplay_server()
         await self._start_airplay_server()
+
+    async def reload_after_config_change(self, changed: set[str]) -> bool:
+        """Apply a saved configuration change to the running service.
+
+        Rebuilds only the components affected by ``changed`` so most setting
+        edits take effect without a manual restart. Returns True when the
+        change still requires a full process restart (currently only the web
+        management port, which cannot rebind the server handling this request).
+
+        Args:
+            changed: Names of the config fields that were modified.
+        """
+        # Fields that require re-authentication before rebuilding renderers.
+        credential_fields = {"account", "password", "cookie"}
+        # Fields that require rebuilding speakers + DLNA + AirPlay renderers.
+        speaker_fields = {"mi_did"} | credential_fields
+        # Fields that require re-advertising DLNA/AirPlay on a new host/port.
+        network_fields = {"hostname", "dlna_port", "airplay_port_start"}
+
+        requires_full_restart = False
+
+        if changed & credential_fields:
+            # Credentials changed: drop the cached login so the next request
+            # authenticates with the new values. The same live config object
+            # is shared, so login() picks up the updated account/cookie.
+            log.info("Configuration changed credentials; invalidating session")
+            if self.auth:
+                self.auth.invalidate_session()
+
+        if changed & speaker_fields:
+            log.info("Configuration changed speakers/credentials; rebuilding renderers")
+            if self.speaker_manager:
+                await self.speaker_manager.rebuild()
+            await self.restart_dlna()
+            await self.restart_airplay()
+
+        if changed & network_fields:
+            log.info("Configuration changed network binding; restarting services")
+            await self.restart_dlna()
+            await self.restart_airplay()
+
+        if "web_port" in changed:
+            # The web server serving this request cannot rebind itself.
+            requires_full_restart = True
+            log.warning(
+                "web_port changed; a full restart is required to rebind the "
+                "management console"
+            )
+
+        return requires_full_restart
 
     def get_renderer_by_did(self, did: str) -> Optional[DlnaRenderer]:
         """Get DLNA renderer by device DID."""

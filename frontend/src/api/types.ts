@@ -59,6 +59,12 @@ export interface AppConfig {
   enable_voice_control: boolean;
   auto_restart: boolean;
   voice_poll_interval: number;
+  web_password: string;
+}
+
+export interface AuthStatus {
+  auth_enabled: boolean;
+  authenticated: boolean;
 }
 
 export type ConfigUpdate = Partial<AppConfig>;

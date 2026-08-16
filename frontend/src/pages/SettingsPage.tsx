@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronDown, FlaskConical, KeyRound, Network, RefreshCw, Save, SlidersHorizontal, UserRound } from "lucide-react";
+import { Activity, ChevronDown, FlaskConical, KeyRound, Network, RefreshCw, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { configQuery, queryKeys } from "../api/queries";
@@ -10,10 +10,11 @@ import { useToast } from "../components/Toast";
 interface Draft extends AppConfig {
   cookieUserId: string;
   cookiePassToken: string;
+  webPassword: string;
 }
 
 function makeDraft(config: AppConfig): Draft {
-  return { ...config, password: "", cookieUserId: "", cookiePassToken: "" };
+  return { ...config, password: "", cookieUserId: "", cookiePassToken: "", webPassword: "" };
 }
 
 export function SettingsPage() {
@@ -42,12 +43,17 @@ export function SettingsPage() {
       };
       if (draft.password.trim()) payload.password = draft.password;
       if (draft.cookieUserId.trim() && draft.cookiePassToken.trim()) payload.cookie = `userId=${draft.cookieUserId.trim()}; passToken=${draft.cookiePassToken.trim()}`;
+      if (draft.webPassword.trim()) payload.web_password = draft.webPassword;
       return api.saveConfig(payload);
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.config });
-      setDraft((current) => current ? { ...current, password: "", cookieUserId: "", cookiePassToken: "" } : current);
-      showToast("配置已保存，请重启 MiAirX 使全部更改生效", "success");
+      setDraft((current) => current ? { ...current, password: "", cookieUserId: "", cookiePassToken: "", webPassword: "" } : current);
+      if (result.restart_required) {
+        showToast("配置已保存；管理端口变更需重启 MiAirX 后生效", "info");
+      } else {
+        showToast("配置已保存并自动生效", "success");
+      }
     },
     onError: (error: Error) => showToast(error.message, "error"),
   });
@@ -57,6 +63,7 @@ export function SettingsPage() {
     draft.password.trim() ||
     draft.cookieUserId.trim() ||
     draft.cookiePassToken.trim() ||
+    draft.webPassword.trim() ||
     JSON.stringify(draft) !== JSON.stringify(makeDraft(config.data))
   ));
   const reload = async () => {
@@ -93,6 +100,13 @@ export function SettingsPage() {
               <label className="field"><span>DLNA 端口</span><input type="number" min={1} max={65535} value={draft.dlna_port} onChange={(event) => update("dlna_port", Number(event.target.value))} /></label>
               <label className="field"><span>管理端口</span><input type="number" min={1} max={65535} value={draft.web_port} onChange={(event) => update("web_port", Number(event.target.value))} /></label>
               <label className="field"><span>AirPlay 起始端口</span><input type="number" min={1} max={65534} value={draft.airplay_port_start} onChange={(event) => update("airplay_port_start", Number(event.target.value))} /><small>每台音箱依次占用两个 TCP 端口。</small></label>
+            </div>
+          </section>
+
+          <section className="settings-section">
+            <div className="settings-section-title"><div className="settings-icon blue"><ShieldCheck size={20} /></div><div><h2>后台安全</h2><p>给管理台设置访问密码，防止局域网内他人操作你的音箱。</p></div></div>
+            <div className="form-grid two-columns">
+              <label className="field"><span>后台密码</span><input type="password" autoComplete="new-password" value={draft.webPassword} onChange={(event) => update("webPassword", event.target.value)} placeholder={config.data?.web_password ? "已设置；留空保持不变" : "留空表示不启用登录保护"} /></label>
             </div>
           </section>
 

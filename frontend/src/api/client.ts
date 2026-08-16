@@ -1,4 +1,4 @@
-import type { ActionResponse, AppConfig, AppStatus, ConfigUpdate, PositionsResponse, Speaker, XiaomiDevice } from "./types";
+import type { ActionResponse, AppConfig, AppStatus, AuthStatus, ConfigUpdate, PositionsResponse, Speaker, XiaomiDevice } from "./types";
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
@@ -33,6 +33,9 @@ function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const api = {
+  authStatus: () => request<AuthStatus>("/api/auth/status"),
+  login: (password: string) => post<ActionResponse>("/api/auth/login", { password }),
+  logout: () => post<ActionResponse>("/api/auth/logout", {}),
   status: () => request<AppStatus>("/api/status"),
   config: () => request<AppConfig>("/api/config"),
   speakers: () => request<Speaker[]>("/api/speakers"),

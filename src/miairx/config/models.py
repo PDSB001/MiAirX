@@ -99,6 +99,7 @@ class AppConfig(BaseModel):
     enable_voice_control: bool = False
     auto_restart: bool = False
     voice_poll_interval: int = 1
+    web_password: str = ""
     speakers: dict[str, SpeakerConfig] = Field(default_factory=dict)
 
     def __init__(self, **data):
@@ -113,6 +114,9 @@ class AppConfig(BaseModel):
         if not self.mi_did:
             import os
             self.mi_did = os.getenv("MI_DID", "")
+        if not self.web_password:
+            import os
+            self.web_password = os.getenv("MIAIR_WEB_PASSWORD", "")
         if not self.hostname:
             import os
             self.hostname = os.getenv("MIAIR_HOSTNAME", "")

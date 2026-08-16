@@ -3,7 +3,7 @@
 
 services:
   miairx:
-    image: ghcr.io/pdsb001/miairx:master
+    image: jxydk/miairx:master
     container_name: miairx
     network_mode: host
     restart: unless-stopped

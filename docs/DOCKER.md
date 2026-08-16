@@ -60,7 +60,7 @@ docker compose restart miairx
 `docker pull` 只下载镜像，不会启动容器或修改宿主机防火墙：
 
 ```bash
-docker pull ghcr.io/pdsb001/miairx:master
+docker pull jxydk/miairx:master
 ```
 
 然后创建配置目录并启动：
@@ -77,7 +77,7 @@ docker run -d \
   -e MIAIR_HOSTNAME='192.168.1.10' \
   -e MIAIR_AIRPLAY_PORT_START='7000' \
   -v "$(pwd)/conf:/app/conf" \
-  ghcr.io/pdsb001/miairx:master
+  jxydk/miairx:master
 ```
 
 ## 镜像中的前端

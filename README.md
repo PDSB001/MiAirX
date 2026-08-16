@@ -133,7 +133,7 @@ docker run -d \
   -e MI_USER='你的小米账号' \
   -e MI_PASS='你的小米密码' \
   -v "$(pwd)/conf:/app/conf" \
-  ghcr.io/pdsb001/miairx:master
+  jxydk/miairx:master
 ```
 
 然后访问 `http://Linux主机局域网IP:8300`。

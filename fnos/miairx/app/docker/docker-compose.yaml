@@ -1,6 +1,6 @@
 services:
   miairx:
-    image: ghcr.io/pdsb001/miairx:1.0.4
+    image: jxydk/miairx:1.0.4
     container_name: fnos-miairx
     network_mode: host
     restart: unless-stopped

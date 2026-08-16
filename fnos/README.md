@@ -30,8 +30,7 @@ MiAirX 使用 `network_mode: host`，使 SSDP、mDNS、DLNA 和 AirPlay 可以�
 ## 发布前检查
 
 - 将 `manifest` 和 Compose 镜像标签更新为同一个 MiAirX 版本。
-- 确认 GHCR 标签同时提供 `linux/amd64` 与 `linux/arm64` 镜像。
-- 在 GitHub 仓库中设置 `DOCKERHUB_IMAGE` 变量以及 `DOCKERHUB_USERNAME`、
-  `DOCKERHUB_TOKEN` Secrets，即可将相同标签同步发布到 Docker Hub。
-- Docker Hub 镜像首次发布成功后，再将飞牛 Compose 的 `image` 切换到该仓库。
+- 确认 `jxydk/miairx` 标签同时提供 `linux/amd64` 与 `linux/arm64` 镜像。
+- 在 GitHub 仓库中设置 `DOCKERHUB_IMAGE=jxydk/miairx` 变量以及
+  `DOCKERHUB_USERNAME`、`DOCKERHUB_TOKEN` Secrets，即可将相同标签同步发布到 Docker Hub。
 - 在真实 fnOS 设备上验证 `network_mode: host`、组播发现和应用中心启停流程。

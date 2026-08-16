@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-MiAirX 当前版本线为 1.0.4。核心 DLNA、AirPlay 1、媒体代理、多设备配置和管理台均已实现。工作区中的管理台已经迁移到 React/TypeScript，根路径使用新页面，旧页面保留在 `/legacy`。
+MiAirX 当前版本线为 1.5.0。核心 DLNA、AirPlay 1、媒体代理、多设备配置和管理台均已实现。工作区中的管理台已经迁移到 React/TypeScript，根路径使用新页面，旧页面保留在 `/legacy`。
 
 最近一轮重点改动：
 

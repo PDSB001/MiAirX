@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronDown, FlaskConical, KeyRound, Network, RefreshCw, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
+import { Activity, ChevronDown, ExternalLink, FlaskConical, KeyRound, Network, RefreshCw, Rocket, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { configQuery, queryKeys } from "../api/queries";
@@ -15,6 +15,45 @@ interface Draft extends AppConfig {
 
 function makeDraft(config: AppConfig): Draft {
   return { ...config, password: "", cookieUserId: "", cookiePassToken: "", webPassword: "" };
+}
+
+function VersionPanel() {
+  const version = useQuery({ queryKey: ["version"], queryFn: () => api.version(), retry: false });
+  const data = version.data;
+  return (
+    <details className="compatibility-panel version-panel">
+      <summary>
+        <span className="compatibility-symbol"><Rocket size={18} /></span>
+        <span><strong>版本检测</strong><small>检查 GitHub 上的最新发布版本</small></span>
+        {data?.update_available && <em className="update-badge">有新版本</em>}
+        <ChevronDown className="details-chevron" size={18} />
+      </summary>
+      <div className="compatibility-content version-content">
+        {version.isLoading && <p className="version-line muted">正在检查更新…</p>}
+        {version.isError && <p className="version-line muted">检查失败：{(version.error as Error).message}</p>}
+        {data && (
+          <div className="version-line">
+            <span>当前版本</span>
+            <strong>v{data.current_version}</strong>
+            {data.latest_version && (
+              <>
+                <span>最新版本</span>
+                <strong>{data.latest_version}</strong>
+              </>
+            )}
+          </div>
+        )}
+        {data?.update_available && data.url && (
+          <a className="button secondary small" href={data.url} target="_blank" rel="noreferrer"><ExternalLink size={15} />查看更新</a>
+        )}
+        {data && !data.update_available && !data.error && (
+          <p className="version-line muted">当前已是最新版本。</p>
+        )}
+        {data?.error && <p className="version-line muted">无法连接 GitHub，稍后可重试。</p>}
+        <button className="button secondary small" onClick={() => void version.refetch()} disabled={version.isFetching}>重新检查</button>
+      </div>
+    </details>
+  );
 }
 
 export function SettingsPage() {
@@ -145,6 +184,7 @@ export function SettingsPage() {
             </div>
           </details>
 
+          <VersionPanel />
           <div className={`save-bar ${hasChanges ? "has-changes" : "is-saved"}`}><div><strong>{hasChanges ? "有未保存的更改" : "配置已是最新"}</strong><span>{hasChanges ? "保存不会自动重启，也不会打断正在播放的内容。" : "修改任意设置后，可在这里统一保存。"}</span></div><button type="submit" className="button primary large" disabled={!hasChanges || save.isPending}><Save size={18} />{save.isPending ? "正在保存" : hasChanges ? "保存全部设置" : "已保存"}</button></div>
         </form>
       )}

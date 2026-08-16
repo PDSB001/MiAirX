@@ -52,6 +52,7 @@ def create_web_app(config: "AppConfig", app: "Application", config_store: Config
     web_app.router.add_post("/api/auth/login", handle_auth_login)
     web_app.router.add_post("/api/auth/logout", handle_auth_logout)
     web_app.router.add_get("/api/status", handle_status)
+    web_app.router.add_get("/api/version", handle_version)
     web_app.router.add_get("/api/config", handle_get_config)
     web_app.router.add_post("/api/config", handle_save_config)
     web_app.router.add_get("/api/speakers", handle_speakers)
@@ -105,6 +106,23 @@ async def handle_status(request: web.Request) -> web.Response:
     }
     
     return web.json_response(status)
+
+
+async def handle_version(request: web.Request) -> web.Response:
+    """Check for the latest GitHub release, compared against the running build."""
+    app = request.app["app"]
+    force = request.query.get("force") == "1"
+    checker = getattr(app, "version_checker", None)
+    if checker is None:
+        return web.json_response({
+            "current_version": __version__,
+            "latest_version": None,
+            "url": None,
+            "update_available": False,
+            "error": "Version checker unavailable",
+        })
+    info = await checker.check(force=force)
+    return web.json_response(info)
 
 
 async def handle_get_config(request: web.Request) -> web.Response:

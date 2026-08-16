@@ -67,6 +67,14 @@ export interface AuthStatus {
   authenticated: boolean;
 }
 
+export interface VersionInfo {
+  current_version: string;
+  latest_version: string | null;
+  url: string | null;
+  update_available: boolean;
+  error: string | null;
+}
+
 export type ConfigUpdate = Partial<AppConfig>;
 
 export interface ActionResponse {

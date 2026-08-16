@@ -27,6 +27,7 @@ from miairx.protocols.dlna.server import DlnaHttpServer
 from miairx.protocols.dlna.ssdp import SsdpServer
 from miairx.speaker.controller import SpeakerController
 from miairx.speaker.manager import SpeakerManager
+from miairx.version_check import VersionChecker
 from miairx.web.app import create_web_app
 
 log = logging.getLogger(__name__)
@@ -166,6 +167,9 @@ class Application:
         
         # Initialize authentication
         self.auth = AuthManager(self.config, self.session)
+
+        # Initialize version checker (lazy; only fires on explicit checks)
+        self.version_checker = VersionChecker(self.session)
         
         # Initialize speaker manager
         self.speaker_manager = SpeakerManager(self.config, self.auth)

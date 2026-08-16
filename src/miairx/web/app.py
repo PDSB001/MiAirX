@@ -56,6 +56,7 @@ def create_web_app(config: "AppConfig", app: "Application", config_store: Config
     web_app.router.add_post("/api/config", handle_save_config)
     web_app.router.add_get("/api/speakers", handle_speakers)
     web_app.router.add_get("/api/devices", handle_devices)
+    web_app.router.add_get("/api/devices/discover", handle_discover_speakers)
     web_app.router.add_post("/api/play", handle_play)
     web_app.router.add_post("/api/pause", handle_pause)
     web_app.router.add_post("/api/stop", handle_stop)
@@ -283,6 +284,13 @@ async def handle_devices(request: web.Request) -> web.Response:
     
     devices = await app.get_all_devices()
     return web.json_response(devices)
+
+
+async def handle_discover_speakers(request: web.Request) -> web.Response:
+    """Auto-discover smart speakers and return them for one-click selection."""
+    app = request.app["app"]
+    speakers = await app.discover_speakers()
+    return web.json_response(speakers)
 
 
 async def handle_play(request: web.Request) -> web.Response:

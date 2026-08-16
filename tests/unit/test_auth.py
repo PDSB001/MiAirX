@@ -151,3 +151,45 @@ async def test_auth_manager_get_device_list(mock_session, mock_mina_service):
     
     assert len(devices) == 1
     assert devices[0]["miotDID"] == "123456789"
+
+
+class TestSpeakerDiscovery:
+    """Tests for automatic speaker discovery from the cloud device list."""
+
+    def test_identifies_known_speaker_models(self):
+        speakers = [
+            {"hardware": "LX04"},
+            {"hardware": "X08A"},
+            {"hardware": "S12A"},
+            {"hardware": "OH2P"},
+            {"hardware": "L15A"},
+        ]
+        for device in speakers:
+            assert AuthManager.is_speaker_device(device), device
+
+    def test_rejects_non_speaker_devices(self):
+        non_speakers = [
+            {"hardware": "MIBOX3"},
+            {"hardware": "AIR_CONDITIONER"},
+            {"hardware": ""},
+            {},
+        ]
+        for device in non_speakers:
+            assert not AuthManager.is_speaker_device(device), device
+
+    @pytest.mark.asyncio
+    async def test_discover_speakers_filters_cloud_list(self, mock_session, mock_mina_service):
+        mock_mina_service.device_list = AsyncMock(return_value=[
+            {"miotDID": "1", "hardware": "LX06", "name": "Speaker A"},
+            {"miotDID": "2", "hardware": "MIBOX3", "name": "TV Box"},
+            {"miotDID": "3", "hardware": "X08C", "name": "Speaker B"},
+            {"miotDID": "4", "name": "Unknown"},
+        ])
+        config = AppConfig(conf_path="/tmp/test")
+        auth = AuthManager(config, mock_session)
+        auth._logged_in = True
+        auth.mina_service = mock_mina_service
+
+        discovered = await auth.discover_speakers()
+
+        assert [d["miotDID"] for d in discovered] == ["1", "3"]

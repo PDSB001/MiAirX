@@ -40,6 +40,7 @@ export const api = {
   config: () => request<AppConfig>("/api/config"),
   speakers: () => request<Speaker[]>("/api/speakers"),
   devices: () => request<XiaomiDevice[]>("/api/devices"),
+  discoverSpeakers: () => request<XiaomiDevice[]>("/api/devices/discover"),
   positions: () => request<PositionsResponse>("/api/positions"),
   saveConfig: (config: ConfigUpdate) => post<ActionResponse>("/api/config", config),
   play: (did: string, url: string) => post<ActionResponse>("/api/play", { did, url }),

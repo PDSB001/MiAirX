@@ -10,6 +10,7 @@ from miservice import MiAccount, MiIOService, MiNAService
 from miairx.auth.cookie import mask_cookie_value, parse_cookie_string, validate_cookie_data
 from miairx.auth.errors import CaptchaRequiredError, LoginError, TokenExpiredError
 from miairx.config.models import AppConfig
+from miairx.const import SPEAKER_HARDWARE_PATTERNS
 
 log = logging.getLogger(__name__)
 
@@ -185,6 +186,25 @@ class AuthManager:
                     f"(did={miot_did}, device_id={speaker.device_id}, "
                     f"hardware={speaker.hardware})"
                 )
+
+    @staticmethod
+    def is_speaker_device(device: dict) -> bool:
+        """Return True if a cloud device entry looks like a smart speaker.
+
+        Xiaomi's MiNA device list mixes speakers with companion hardware. We
+        identify speakers by matching the ``hardware`` model against the known
+        speaker model families (LX/L, X, S, OH series). Devices without any
+        hardware string are not treated as speakers.
+        """
+        hardware = str(device.get("hardware", "") or "").strip().upper()
+        if not hardware:
+            return False
+        return any(re.match(pattern, hardware) for pattern in SPEAKER_HARDWARE_PATTERNS)
+
+    async def discover_speakers(self) -> list[dict]:
+        """Return the subset of cloud devices that are smart speakers."""
+        devices = await self.get_device_list()
+        return [device for device in devices if self.is_speaker_device(device)]
 
     def is_logged_in(self) -> bool:
         """Check if we're logged in."""

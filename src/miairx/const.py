@@ -51,6 +51,17 @@ NEED_USE_PLAY_MUSIC_API = [
 # Default audio_id (for play_by_music_url)
 DEFAULT_AUDIO_ID = "448161862632079419"
 
+# Hardware model patterns used to identify Xiaomi smart speakers from the
+# cloud device list. MiNA returns a mixture of speakers and companion devices;
+# these patterns match the speaker model families (LX/L, X, S, OH series).
+SPEAKER_HARDWARE_PATTERNS = [
+    r"^LX\d{2}[A-Z]*$",   # LX04, LX05, LX05A, LX06 ...
+    r"^L\d{2}[A-Z]*$",    # L05B, L06A, L15A, L07A ...
+    r"^X\d{1,2}[A-Z]*$",  # X08A, X08C, X10A, X6A, X8F ...
+    r"^S\d{1,2}[A-Z]*$",  # S12, S12A ...
+    r"^OH\d[A-Z]*$",      # OH2, OH2P (Xiaomi Speaker Art)
+]
+
 # Supported protocols (ConnectionManager GetProtocolInfo) - audio only
 SUPPORTED_PROTOCOLS = ",".join([
     "http-get:*:audio/mpeg:*",

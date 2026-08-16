@@ -599,3 +599,16 @@ class Application:
         except Exception as e:
             log.error(f"Failed to get device list: {e}")
             return []
+
+    async def discover_speakers(self) -> list[dict]:
+        """Auto-discover smart speakers under the current Xiaomi account."""
+        if not self.auth:
+            return []
+        if not self.config.account and not self.config.cookie:
+            return []
+        try:
+            await self.auth.ensure_login()
+            return await self.auth.discover_speakers()
+        except Exception as e:
+            log.error(f"Failed to discover speakers: {e}")
+            return []

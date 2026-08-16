@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Cloud, RefreshCw, Router, Save } from "lucide-react";
+import { Check, Cloud, RefreshCw, Router, Save, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { configQuery, devicesQuery, queryKeys, speakersQuery } from "../api/queries";
@@ -14,6 +14,7 @@ export function DevicesPage() {
   const devices = useQuery(devicesQuery);
   const config = useQuery(configQuery);
   const [selected, setSelected] = useState<Set<string> | null>(null);
+  const [discovering, setDiscovering] = useState(false);
   useEffect(() => {
     if (!selected && config.data) setSelected(new Set(config.data.mi_did.split(",").map((did) => did.trim()).filter(Boolean)));
   }, [config.data, selected]);
@@ -38,10 +39,26 @@ export function DevicesPage() {
       return next;
     });
   };
+  const discover = async () => {
+    setDiscovering(true);
+    try {
+      const found = await api.discoverSpeakers();
+      if (found.length === 0) {
+        showToast("未识别到音箱设备", "info");
+        return;
+      }
+      setSelected(new Set(found.map((device) => deviceDid(device)).filter(Boolean)));
+      showToast(`已自动识别 ${found.length} 台音箱，点击「应用所选设备」保存`, "success");
+    } catch (error) {
+      showToast((error as Error).message, "error");
+    } finally {
+      setDiscovering(false);
+    }
+  };
 
   return (
     <div className="page-view">
-      <PageHeader eyebrow="Device cloud" title="设备管理" description="从当前小米账号的云端设备中选择要接入 MiAirX 的音箱。" action={<button className="button secondary" onClick={() => void devices.refetch()} disabled={devices.isFetching}><RefreshCw className={devices.isFetching ? "spin" : ""} size={17} />刷新设备</button>} />
+      <PageHeader eyebrow="Device cloud" title="设备管理" description="从当前小米账号的云端设备中选择要接入 MiAirX 的音箱。" action={<><button className="button secondary" onClick={() => void discover()} disabled={discovering}><Sparkles size={17} />{discovering ? "正在识别" : "自动发现音箱"}</button><button className="button secondary" onClick={() => void devices.refetch()} disabled={devices.isFetching}><RefreshCw className={devices.isFetching ? "spin" : ""} size={17} />刷新设备</button></>} />
       <section className="section-card">
         <div className="section-heading"><div><Cloud size={20} /><span><strong>小米云设备</strong><small>{deviceList.length ? `共 ${deviceList.length} 台，已选 ${selectedCount} 台` : "等待云端设备列表"}</small></span></div><span className="selection-count">{chosen.size} selected</span></div>
         {devices.isLoading && <LoadingState label="正在读取小米云设备" />}

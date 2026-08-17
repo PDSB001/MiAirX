@@ -77,9 +77,21 @@ class AuthManager:
 
         # Perform login
         if token_data.get("userId") and token_data.get("passToken"):
-            # Cookie login - skip actual login call
-            self._logged_in = True
-            log.info("Cookie login successful")
+            # Cookie login. We must exchange the passToken for a serviceToken
+            # ourselves because miservice-fork 2.x's login() assumes a
+            # password-login response (which always contains a fresh
+            # passToken); a cookie re-login returns code==0 WITHOUT passToken,
+            # so login() crashes with KeyError('passToken'). Exchanging the
+            # token here also sets token[sid], which makes mi_request() skip
+            # its implicit login() call entirely.
+            self._logged_in = await self._exchange_service_token("micoapi")
+            # xiaomiio (MiIOService) is optional; failure must not block login.
+            await self._exchange_service_token("xiaomiio")
+            if self._logged_in:
+                log.info("Cookie login successful")
+            else:
+                log.error("Cookie login failed: could not exchange service token "
+                          "(cookie may be expired or in an unsupported format)")
         else:
             try:
                 await self.account.login("micoapi")
@@ -130,6 +142,52 @@ class AuthManager:
         """Invalidate current session (for retry logic)."""
         self._logged_in = False
         log.info("Session invalidated, will re-login on next request")
+
+    async def _exchange_service_token(self, sid: str) -> bool:
+        """Exchange the cookie's passToken for a serviceToken for ``sid``.
+
+        miservice-fork 2.x's ``login()`` is incompatible with cookie re-login:
+        its ``serviceLogin`` response carries ``code == 0`` (success) but no
+        ``passToken`` field, so ``login()`` raises ``KeyError('passToken')``.
+        This method performs the same exchange directly and stores the result
+        under ``token[sid]`` so ``mi_request()`` never re-triggers ``login()``.
+
+        Returns True when a serviceToken was obtained and stored.
+        """
+        account = self.account
+        try:
+            resp = await account._serviceLogin(f"serviceLogin?sid={sid}&_json=true")
+        except Exception as exc:  # noqa: BLE001
+            log.error(f"serviceLogin({sid}) failed: {exc}")
+            return False
+
+        if resp.get("code") != 0:
+            log.warning(f"serviceLogin({sid}) returned code={resp.get('code')}: {resp.get('desc') or resp.get('description')}")
+            return False
+
+        location = resp.get("location", "")
+        nonce = resp.get("nonce", "")
+        if not nonce and location:
+            match = re.search(r"[?&]nonce=([^&]+)", location)
+            if match:
+                nonce = match.group(1)
+
+        # A cookie re-login returns "psecurity" instead of "ssecurity".
+        ssecurity = resp.get("ssecurity") or resp.get("psecurity", "")
+        if not location or not ssecurity:
+            log.warning(f"serviceLogin({sid}) missing location/ssecurity: {sorted(resp.keys())}")
+            return False
+
+        try:
+            service_token = await account._securityTokenService(location, nonce, ssecurity)
+        except Exception as exc:  # noqa: BLE001
+            log.error(f"Security token exchange failed for {sid}: {exc}")
+            return False
+
+        account.token["userId"] = resp.get("userId") or account.token.get("userId")
+        account.token[sid] = (ssecurity, service_token)
+        log.info(f"Service token exchanged for {sid}")
+        return True
 
     @staticmethod
     def _extract_error_code(err_msg: str) -> str:

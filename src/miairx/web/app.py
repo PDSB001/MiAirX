@@ -249,6 +249,15 @@ async def handle_save_config(request: web.Request) -> web.Response:
 
         # Track which fields actually change so we can hot-reload only the
         # affected components after persisting.
+        int_fields = {
+            "dlna_port", "web_port", "airplay_port_start",
+            "resume_delay_seconds", "default_volume", "voice_poll_interval",
+        }
+        bool_fields = {
+            "verbose", "proxy_enabled", "auto_play_on_set_uri",
+            "auto_resume_on_interrupt", "follow_device_volume",
+            "enable_voice_control", "auto_restart",
+        }
         changed: set[str] = set()
         for field in (
             "account", "mi_did", "cookie", "hostname", "dlna_port",
@@ -260,12 +269,12 @@ async def handle_save_config(request: web.Request) -> web.Response:
             if field in data:
                 old = getattr(config, field)
                 new = data[field]
-                if field in ("dlna_port", "web_port", "airplay_port_start",
-                             "resume_delay_seconds", "default_volume",
-                             "voice_poll_interval"):
+                if field in int_fields:
                     new = int(new)
-                else:
+                elif field in bool_fields:
                     new = bool(new)
+                # String fields (account/mi_did/cookie/hostname) are compared
+                # as-is so an unchanged value is not flagged as modified.
                 if old != new:
                     changed.add(field)
 

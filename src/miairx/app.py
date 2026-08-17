@@ -11,6 +11,7 @@ from aiohttp import web
 from zeroconf import Zeroconf, IPVersion
 
 from miairx.auth.manager import AuthManager
+from miairx.config.discovery import detect_local_ip
 from miairx.config.models import AppConfig
 from miairx.config.store import ConfigStore
 from miairx.const import (
@@ -195,6 +196,20 @@ class Application:
         # Start periodic tasks
         asyncio.create_task(self._periodic_health_check())
 
+    def resolve_hostname(self) -> str:
+        """Resolve the effective LAN hostname for advertising and serving.
+
+        When the configured hostname is blank or a non-routable placeholder
+        (0.0.0.0 / 127.0.0.1 / localhost), auto-detect the current LAN IPv4
+        address. DHCP-assigned addresses change over time, so a blank hostname
+        is re-detected on every (re)start instead of being pinned to a stale
+        address.
+        """
+        host = (self.config.hostname or "").strip()
+        if host and host not in ("0.0.0.0", "127.0.0.1", "localhost"):
+            return host
+        return detect_local_ip()
+
     def _show_startup_summary(self) -> None:
         """Show startup summary with configuration status."""
         print("\n" + "=" * 60)
@@ -205,7 +220,7 @@ class Application:
         if not self.config.account and not self.config.cookie:
             print("\n⚠️  未配置小米账号")
             print("   请通过以下方式配置:")
-            print(f"   1. Web 界面: http://{self.config.hostname}:{self.config.web_port}")
+            print(f"   1. Web 界面: http://{self.resolve_hostname()}:{self.config.web_port}")
             print(f"   2. 配置文件: {self.config.conf_path}/config.json")
         else:
             print(f"\n✅ 小米账号: {self.config.account[:3]}***")
@@ -222,8 +237,8 @@ class Application:
         
         # Show server addresses
         print(f"\n📡 服务地址:")
-        print(f"   DLNA: http://{self.config.hostname}:{self.config.dlna_port}")
-        print(f"   Web:  http://{self.config.hostname}:{self.config.web_port}")
+        print(f"   DLNA: http://{self.resolve_hostname()}:{self.config.dlna_port}")
+        print(f"   Web:  http://{self.resolve_hostname()}:{self.config.web_port}")
         if speakers:
             airplay_start, _ = self.config.get_airplay_ports(0)
             _, airplay_end = self.config.get_airplay_ports(len(speakers) - 1)
@@ -243,17 +258,17 @@ class Application:
         self._did_to_udn.clear()
         
         # Create SSDP server
-        self.ssdp = SsdpServer(self.config.hostname, self.config.dlna_port)
+        self.ssdp = SsdpServer(self.resolve_hostname(), self.config.dlna_port)
         
         # Create DLNA HTTP server
         self.dlna_server = DlnaHttpServer(
-            self.config.hostname,
+            self.resolve_hostname(),
             self.config.dlna_port,
             self.config,
         )
         
         # Create media proxy
-        self.media_proxy = MediaProxy(self.config.hostname, self.config.dlna_port)
+        self.media_proxy = MediaProxy(self.resolve_hostname(), self.config.dlna_port)
         
         # Create renderers for each enabled speaker
         for speaker in self.config.get_enabled_speakers():
@@ -285,7 +300,7 @@ class Application:
             log.warning("No speakers registered. DLNA server started but no devices to advertise.")
             log.warning("Please configure speakers in Web UI or config file.")
         
-        log.warning(f"DLNA server started on {self.config.hostname}:{self.config.dlna_port}")
+        log.warning(f"DLNA server started on {self.resolve_hostname()}:{self.config.dlna_port}")
 
     async def _start_airplay_server(self) -> None:
         """Start AirPlay server components."""
@@ -308,7 +323,7 @@ class Application:
             if controller:
                 rtsp_port, audio_port = self.config.get_airplay_ports(speaker_index)
                 airplay = SpeakerAirplay(
-                    hostname=self.config.hostname,
+                    hostname=self.resolve_hostname(),
                     controller=controller,
                     shared_zeroconf=self._zeroconf,
                     config=self.config,
@@ -341,7 +356,7 @@ class Application:
         site = web.TCPSite(self.web_runner, "0.0.0.0", self.config.web_port)
         await site.start()
         
-        log.warning(f"Web management interface started on http://{self.config.hostname}:{self.config.web_port}")
+        log.warning(f"Web management interface started on http://{self.resolve_hostname()}:{self.config.web_port}")
 
     async def stop(self) -> None:
         """Stop the application."""

@@ -564,6 +564,9 @@ class Application:
         speaker_fields = {"mi_did"} | credential_fields
         # Fields that require re-advertising DLNA/AirPlay on a new host/port.
         network_fields = {"hostname", "dlna_port", "airplay_port_start"}
+        # Fields baked into renderers at construction time; rebuilding them
+        # re-reads the new values (e.g. default_volume / follow_device_volume).
+        renderer_fields = {"default_volume", "follow_device_volume"}
 
         requires_full_restart = False
 
@@ -575,17 +578,22 @@ class Application:
             if self.auth:
                 self.auth.invalidate_session()
 
-        if changed & speaker_fields:
-            log.info("Configuration changed speakers/credentials; rebuilding renderers")
-            if self.speaker_manager:
+        if changed & (speaker_fields | network_fields | renderer_fields):
+            if changed & speaker_fields and self.speaker_manager:
+                log.info("Configuration changed speakers/credentials; rebuilding renderers")
                 await self.speaker_manager.rebuild()
+            else:
+                log.info("Configuration changed network/volume settings; restarting services")
             await self.restart_dlna()
             await self.restart_airplay()
 
-        if changed & network_fields:
-            log.info("Configuration changed network binding; restarting services")
-            await self.restart_dlna()
-            await self.restart_airplay()
+        if "verbose" in changed:
+            # Reconfigure logging live: console level follows the new verbosity
+            # and the file handler is re-attached.
+            from miairx.core.logging import setup_logging
+
+            setup_logging(verbose=self.config.verbose, log_file=self.config.log_file)
+            log.info("Configuration changed verbosity; logging reconfigured")
 
         if "web_port" in changed:
             # The web server serving this request cannot rebind itself.

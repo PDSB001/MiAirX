@@ -1,4 +1,4 @@
-export type PageId = "control" | "devices" | "settings";
+export type PageId = "control" | "devices" | "settings" | "logs";
 
 export interface AppStatus {
   version: string;

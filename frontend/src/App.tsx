@@ -6,6 +6,7 @@ import { useHashPage } from "./hooks/useHashPage";
 import { ControlPage } from "./pages/ControlPage";
 import { DevicesPage } from "./pages/DevicesPage";
 import { LoginPage } from "./pages/LoginPage";
+import { LogsPage } from "./pages/LogsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
 export default function App() {
@@ -14,7 +15,7 @@ export default function App() {
   const locked = auth.data?.auth_enabled && !auth.data.authenticated;
 
   useEffect(() => {
-    const titles = { control: "播放控制", devices: "设备管理", settings: "系统设置" };
+    const titles: Record<string, string> = { control: "播放控制", devices: "设备管理", settings: "系统设置", logs: "日志与诊断" };
     document.title = `${titles[page]} · MiAirX`;
   }, [page]);
 
@@ -31,6 +32,7 @@ export default function App() {
       {page === "control" && <ControlPage />}
       {page === "devices" && <DevicesPage />}
       {page === "settings" && <SettingsPage />}
+      {page === "logs" && <LogsPage />}
     </AppShell>
   );
 }

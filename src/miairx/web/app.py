@@ -1,7 +1,9 @@
 """Web application factory for MiAirX"""
 
+import asyncio
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -10,12 +12,14 @@ from aiohttp import web
 from miairx import __version__
 from miairx.config.models import AppConfig
 from miairx.config.store import ConfigStore
+from miairx.core.log_buffer import get_log_buffer
 from miairx.web.auth import (
     auth_middleware,
     handle_auth_login,
     handle_auth_logout,
     handle_auth_status,
 )
+from miairx.web.diagnostics import build_diagnostics_bundle
 
 if TYPE_CHECKING:
     from miairx.app import Application
@@ -53,6 +57,8 @@ def create_web_app(config: "AppConfig", app: "Application", config_store: Config
     web_app.router.add_post("/api/auth/logout", handle_auth_logout)
     web_app.router.add_get("/api/status", handle_status)
     web_app.router.add_get("/api/version", handle_version)
+    web_app.router.add_get("/api/logs/stream", handle_log_stream)
+    web_app.router.add_get("/api/diagnostics", handle_diagnostics)
     web_app.router.add_get("/api/config", handle_get_config)
     web_app.router.add_post("/api/config", handle_save_config)
     web_app.router.add_get("/api/speakers", handle_speakers)
@@ -123,6 +129,66 @@ async def handle_version(request: web.Request) -> web.Response:
         })
     info = await checker.check(force=force)
     return web.json_response(info)
+
+
+async def handle_log_stream(request: web.Request) -> web.StreamResponse:
+    """Stream live log records to the browser over Server-Sent Events."""
+    response = web.StreamResponse(
+        status=200,
+        headers={
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
+    await response.prepare(request)
+
+    buffer = get_log_buffer()
+    # A per-connection queue receives new records as they arrive.
+    queue: asyncio.Queue = asyncio.Queue(maxsize=200)
+    buffer.subscribe(queue)
+
+    try:
+        # Send the current backlog first.
+        for record in buffer.snapshot():
+            await response.write(
+                f"data: {json.dumps(record, ensure_ascii=False)}\n\n".encode("utf-8")
+            )
+
+        # Then stream new records until the client disconnects.
+        while True:
+            try:
+                record = await asyncio.wait_for(queue.get(), timeout=15.0)
+            except asyncio.TimeoutError:
+                # Heartbeat keeps proxies/browsers from dropping idle streams.
+                await response.write(b": keep-alive\n\n")
+                continue
+            await response.write(
+                f"data: {json.dumps(record, ensure_ascii=False)}\n\n".encode("utf-8")
+            )
+    except (ConnectionResetError, asyncio.CancelledError):
+        pass
+    finally:
+        buffer.unsubscribe(queue)
+
+    return response
+
+
+async def handle_diagnostics(request: web.Request) -> web.Response:
+    """Return a zip archive containing logs and redacted configuration."""
+    app = request.app["app"]
+    bundle = build_diagnostics_bundle(app)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    return web.Response(
+        body=bundle.getvalue(),
+        headers={
+            "Content-Type": "application/zip",
+            "Content-Disposition": (
+                f'attachment; filename="miairx-diagnostics-{timestamp}.zip"'
+            ),
+        },
+    )
 
 
 async def handle_get_config(request: web.Request) -> web.Response:

@@ -52,6 +52,14 @@ def setup_logging(verbose: bool = False, log_file: str | None = None) -> None:
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
 
+    # In-memory ring handler — always DEBUG so the web console can stream a
+    # live log tail regardless of the console/file verbosity.
+    from miairx.core.log_buffer import MemoryLogHandler, get_log_buffer
+
+    memory_handler = MemoryLogHandler(get_log_buffer())
+    memory_handler.setLevel(logging.DEBUG)
+    root_logger.addHandler(memory_handler)
+
     # Console handler — only WARNING+ by default, DEBUG in verbose mode
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(console_level)

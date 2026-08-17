@@ -1,4 +1,4 @@
-import { Gauge, Menu, RadioTower, Settings2, X } from "lucide-react";
+import { Gauge, Menu, RadioTower, ScrollText, Settings2, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { PageId } from "../api/types";
@@ -8,6 +8,7 @@ const nav: Array<{ id: PageId; label: string; caption: string; icon: typeof Gaug
   { id: "control", label: "播放控制", caption: "音箱与投放", icon: Gauge },
   { id: "devices", label: "设备管理", caption: "小米云设备", icon: RadioTower },
   { id: "settings", label: "系统设置", caption: "连接与偏好", icon: Settings2 },
+  { id: "logs", label: "日志诊断", caption: "实时日志与诊断包", icon: ScrollText },
 ];
 
 export function AppShell({ page, setPage, children }: { page: PageId; setPage: (page: PageId) => void; children: ReactNode }) {

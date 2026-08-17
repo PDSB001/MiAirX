@@ -7,9 +7,10 @@ interface ModalProps {
   description?: string;
   onClose: () => void;
   children: ReactNode;
+  transparent?: boolean;
 }
 
-export function Modal({ open, title, description, onClose, children }: ModalProps) {
+export function Modal({ open, title, description, onClose, children, transparent }: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
@@ -19,7 +20,7 @@ export function Modal({ open, title, description, onClose, children }: ModalProp
 
   if (!open) return null;
   return (
-    <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className={`modal-backdrop${transparent ? " modal-backdrop--transparent" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div className="modal-header">
           <div>

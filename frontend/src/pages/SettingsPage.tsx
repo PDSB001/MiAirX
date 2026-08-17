@@ -105,7 +105,7 @@ function QrLoginModal({ onClose }: { onClose: () => void }) {
   const showQr = status === "waiting" || status === "scanned";
 
   return (
-    <Modal open title="扫码登录小米账号" description="用小米账号 App 扫码，登录后凭据自动写入并立即生效。" onClose={onClose}>
+    <Modal open transparent title="扫码登录小米账号" description="用小米账号 App 扫码，登录后凭据自动写入并立即生效。" onClose={onClose}>
       <div className="qr-body">
         <div className="qr-stage">
           {status === "loading" && <div className="qr-state"><RefreshCw className="spin" size={32} /><p>正在获取二维码…</p></div>}

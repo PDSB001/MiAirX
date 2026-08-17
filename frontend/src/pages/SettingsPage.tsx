@@ -229,7 +229,8 @@ export function SettingsPage() {
       {config.isLoading && <LoadingState label="正在读取配置" />}
       {config.isError && <ErrorState message={(config.error as Error).message} retry={() => void config.refetch()} />}
       {draft && (
-        <form onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>
+        <form className="settings-form" onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>
+          <div className="settings-col">
           <section className="settings-section">
             <div className="settings-section-title"><div className="settings-icon"><UserRound size={20} /></div><div><h2>小米账号</h2><p>用于读取账号下的设备并调用音箱播放能力。</p></div></div>
             <div className="login-tabs" role="tablist" aria-label="登录方式">
@@ -270,10 +271,11 @@ export function SettingsPage() {
               <label className="field"><span>AirPlay 起始端口</span><input type="number" min={1} max={65534} value={draft.airplay_port_start} onChange={(event) => update("airplay_port_start", Number(event.target.value))} /><small>每台音箱依次占用两个 TCP 端口。</small></label>
             </div>
           </section>
-
+          </div>
+          <div className="settings-col">
           <section className="settings-section">
             <div className="settings-section-title"><div className="settings-icon blue"><ShieldCheck size={20} /></div><div><h2>后台安全</h2><p>给管理台设置访问密码，防止局域网内他人操作你的音箱。</p></div></div>
-            <div className="form-grid two-columns">
+            <div className="form-grid">
               <label className="field"><span>后台密码</span><input type="password" autoComplete="new-password" value={draft.webPassword} onChange={(event) => update("webPassword", event.target.value)} placeholder={config.data?.web_password ? "已设置；留空保持不变" : "留空表示不启用登录保护"} /></label>
             </div>
           </section>
@@ -284,7 +286,7 @@ export function SettingsPage() {
               <Toggle checked={draft.auto_resume_on_interrupt} onChange={(value) => update("auto_resume_on_interrupt", value)} label="中断后自动恢复" description="语音或其他播放打断后恢复原媒体。" />
               <Toggle checked={draft.follow_device_volume} onChange={(value) => update("follow_device_volume", value)} label="跟随设备音量" description="保留音箱当前音量，不主动覆盖。" />
             </div>
-            <div className="form-grid three-columns compact-fields">
+            <div className="form-grid two-columns compact-fields">
               <label className="field"><span>默认音量</span><div className="suffix-input"><input type="number" min={0} max={100} disabled={draft.follow_device_volume} value={draft.default_volume} onChange={(event) => update("default_volume", Number(event.target.value))} /><b>%</b></div></label>
               <label className="field"><span>恢复延迟</span><div className="suffix-input"><input type="number" min={1} max={15} value={draft.resume_delay_seconds} onChange={(event) => update("resume_delay_seconds", Number(event.target.value))} /><b>秒</b></div></label>
             </div>
@@ -297,6 +299,7 @@ export function SettingsPage() {
               <Toggle checked={draft.verbose} onChange={(value) => update("verbose", value)} label="详细日志" description="输出更多诊断信息，排障完成后建议关闭。" />
             </div>
           </section>
+          </div>
 
           <VersionPanel />
           <div className={`save-bar ${hasChanges ? "has-changes" : "is-saved"}`}><div><strong>{hasChanges ? "有未保存的更改" : "配置已是最新"}</strong><span>{hasChanges ? "保存不会自动重启，也不会打断正在播放的内容。" : "修改任意设置后，可在这里统一保存。"}</span></div><button type="submit" className="button primary large" disabled={!hasChanges || save.isPending}><Save size={18} />{save.isPending ? "正在保存" : hasChanges ? "保存全部设置" : "已保存"}</button></div>

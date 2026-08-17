@@ -54,14 +54,20 @@ class AuthManager:
                 "",  # Empty password
                 token_store=token_store,
             )
-            # Set token with all required fields
-            self.account.token = {
-                "userId": token_data["userId"],
-                "passToken": token_data["passToken"],
-                "deviceId": "miair_device",
-                "ssecurity": "",
-                "serviceToken": "",
-            }
+            # MiAccount.__init__ already loaded any persisted token from the
+            # store. If it already carries a serviceToken for micoapi (written
+            # by QR login), keep it; otherwise seed a fresh token from the
+            # cookie so the legacy exchange path can try to fill it in.
+            existing = self.account.token or {}
+            has_service = existing.get("micoapi") and existing["micoapi"][1]
+            if not has_service:
+                self.account.token = {
+                    "userId": token_data["userId"],
+                    "passToken": token_data["passToken"],
+                    "deviceId": existing.get("deviceId") or "miair_device",
+                    "ssecurity": "",
+                    "serviceToken": "",
+                }
             log.info(f"Using cookie login for user {mask_cookie_value(token_data['userId'])}")
         else:
             # Account/password login
@@ -77,21 +83,25 @@ class AuthManager:
 
         # Perform login
         if token_data.get("userId") and token_data.get("passToken"):
-            # Cookie login. We must exchange the passToken for a serviceToken
-            # ourselves because miservice-fork 2.x's login() assumes a
-            # password-login response (which always contains a fresh
-            # passToken); a cookie re-login returns code==0 WITHOUT passToken,
-            # so login() crashes with KeyError('passToken'). Exchanging the
-            # token here also sets token[sid], which makes mi_request() skip
-            # its implicit login() call entirely.
-            self._logged_in = await self._exchange_service_token("micoapi")
-            # xiaomiio (MiIOService) is optional; failure must not block login.
-            await self._exchange_service_token("xiaomiio")
-            if self._logged_in:
-                log.info("Cookie login successful")
+            # Cookie login. Two paths:
+            #   1. QR login already persisted a serviceToken under token[micoapi]
+            #      -> use it directly, no exchange needed.
+            #   2. Legacy plaintext passToken -> exchange it for a serviceToken.
+            #      (A V1-encrypted passToken CANNOT be exchanged; it returns
+            #      70016, which is why QR login must persist the token itself.)
+            existing = self.account.token or {}
+            if existing.get("micoapi") and existing["micoapi"][1]:
+                self._logged_in = True
+                log.info("Cookie login successful (service token loaded from store)")
             else:
-                log.error("Cookie login failed: could not exchange service token "
-                          "(cookie may be expired or in an unsupported format)")
+                self._logged_in = await self._exchange_service_token("micoapi")
+                # xiaomiio (MiIOService) is optional; failure must not block login.
+                await self._exchange_service_token("xiaomiio")
+                if self._logged_in:
+                    log.info("Cookie login successful")
+                else:
+                    log.error("Cookie login failed: could not exchange service token "
+                              "(cookie may be expired or in an unsupported format)")
         else:
             try:
                 await self.account.login("micoapi")

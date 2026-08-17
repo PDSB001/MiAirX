@@ -18,11 +18,13 @@ The long-poll endpoint returns 403 when the code expires and a JSON body with
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
 import secrets
 import time
 from typing import Optional
+from urllib import parse
 
 import aiohttp
 
@@ -179,14 +181,67 @@ class QRCodeLogin:
         user_id = _as_str(data.get("userId"))
         pass_token = _as_str(data.get("passToken"))
         if user_id and pass_token:
+            # The long-poll response already carries everything needed to
+            # obtain a serviceToken: location (callback), ssecurity/psecurity
+            # and nonce. The passToken itself is an encrypted "V1:" blob that
+            # cannot be used to re-run serviceLogin (it returns 70016), so we
+            # must exchange for the serviceToken HERE, via the location
+            # callback, while the session cookies are still valid.
+            ssecurity = _as_str(data.get("ssecurity") or data.get("psecurity"))
+            nonce = _as_str(data.get("nonce"))
+            location = _as_str(data.get("location"))
+            c_user_id = _as_str(data.get("cUserId"))
+            service_token = ""
+            if location:
+                service_token = await self._fetch_service_token(location, nonce, ssecurity)
             return {
                 "state": STATE_CONFIRMED,
                 "message": "登录成功",
                 "cookie": f"userId={user_id}; passToken={pass_token}",
                 "user_id": user_id,
+                "ssecurity": ssecurity,
+                "nonce": nonce,
+                "location": location,
+                "c_user_id": c_user_id,
+                "service_token": service_token,
             }
 
         return {"state": STATE_SCANNED, "message": "已扫码，请在手机上确认登录"}
+
+    async def _fetch_service_token(self, location: str, nonce: str, ssecurity: str) -> str:
+        """Fetch the serviceToken by visiting the login callback.
+
+        Xiaomi sets the ``serviceToken`` cookie when the callback URL is
+        visited with the same session that performed the long-poll. The
+        callback URL is ``location`` with a ``clientSign`` derived from
+        ``nonce`` + ``ssecurity`` (same formula as miservice).
+        """
+        session = await self._ensure_session()
+        headers = {"User-Agent": self._user_agent}
+
+        async def _get(url: str) -> str:
+            try:
+                async with session.get(url, headers=headers, allow_redirects=True) as response:
+                    await response.read()
+                    cookie = response.cookies.get("serviceToken")
+                    if cookie is not None:
+                        return _as_str(cookie.value)
+            except Exception as exc:  # noqa: BLE001
+                log.debug("serviceToken fetch failed: %s", exc)
+            return ""
+
+        # First try the location as-is (xiaomusic's approach).
+        service_token = await _get(location)
+        if service_token:
+            return service_token
+
+        # Fall back to appending the SHA1 clientSign (miservice's formula).
+        if nonce and ssecurity:
+            nsec = "nonce=" + nonce + "&" + ssecurity
+            client_sign = base64.b64encode(hashlib.sha1(nsec.encode()).digest()).decode()
+            sep = "&" if "?" in location else "?"
+            service_token = await _get(location + sep + "clientSign=" + parse.quote(client_sign))
+        return service_token
 
     async def close(self) -> None:
         if self._session is not None and not self._session.closed:

@@ -108,7 +108,7 @@ function QrLoginModal({ onClose }: { onClose: () => void }) {
     <Modal open title="扫码登录小米账号" description="用小米账号 App 扫码，登录后凭据自动写入并立即生效。" onClose={onClose}>
       <div className="qr-body">
         <div className="qr-stage">
-          {status === "loading" && <div className="qr-state"><RefreshCw className="spin" size={30} /><p>正在获取二维码…</p></div>}
+          {status === "loading" && <div className="qr-state"><RefreshCw className="spin" size={32} /><p>正在获取二维码…</p></div>}
           {showQr && qrcodeImage && <img className="qr-image" src={qrcodeImage} alt="登录二维码" />}
           {showQr && !qrcodeImage && loginUrl && <a className="button secondary" href={loginUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} />打开登录链接</a>}
           {status === "confirmed" && <div className="qr-state"><CheckCircle2 className="qr-success" size={32} /><p>登录成功</p></div>}

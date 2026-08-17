@@ -261,8 +261,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(14, 119, 108
 .spin { animation: spin .9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(12,22,21,.44); animation: fade-in .18s ease; }
-.modal-card { width: min(500px, 100%); padding: 24px; border-radius: 21px; background: #fff; box-shadow: 0 35px 90px rgba(5,25,23,.3); animation: modal-in .25s cubic-bezier(.2,.8,.2,1); }
+.modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(15, 23, 42, .45); animation: fade-in .18s ease; }
+.modal-card { width: min(440px, 100%); padding: 28px; border-radius: 22px; background: #fff; box-shadow: 0 28px 80px rgba(2, 8, 20, .28); animation: modal-in .25s cubic-bezier(.2,.8,.2,1); }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 .modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 23px; }
@@ -274,19 +274,19 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(14, 119, 108
 .input-with-icon input { min-width: 0; padding-left: 0; border: 0; box-shadow: none !important; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
 
-.qr-body { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 2px 0 4px; }
-.qr-stage { width: 100%; min-height: 216px; display: grid; place-items: center; padding: 16px; border-radius: 16px; background: #f6faf9; border: 1px solid #e6ecec; }
-.qr-image { width: 200px; height: 200px; border-radius: 12px; border: 1px solid #dce4e4; background: #fff; image-rendering: pixelated; }
-.qr-state { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #8a969a; text-align: center; }
-.qr-state p { margin: 0; font-size: 13px; max-width: 280px; line-height: 1.6; }
-.qr-state svg.qr-success { color: #2e9e7e; }
+.qr-body { display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 6px 0 2px; }
+.qr-stage { width: 224px; height: 224px; display: grid; place-items: center; }
+.qr-image { width: 224px; height: 224px; border-radius: 14px; background: #fff; border: 1px solid #e7ecec; box-shadow: 0 10px 30px rgba(20, 40, 40, .08); image-rendering: pixelated; }
+.qr-state { width: 224px; height: 224px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: #9aa5a9; text-align: center; }
+.qr-state p { margin: 0; font-size: 13px; max-width: 240px; line-height: 1.6; color: #8a969a; }
+.qr-state svg.qr-success { color: #1d9c8c; }
 .qr-state svg.qr-error { color: #d9823f; }
-.qr-status { width: 100%; display: flex; align-items: center; gap: 9px; padding: 11px 14px; border-radius: 11px; font-size: 12px; font-weight: 600; }
+.qr-status { display: flex; align-items: center; gap: 9px; padding: 9px 15px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .qr-status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-.qr-status-loading, .qr-status-waiting { color: #5f6d72; background: #eef2f2; }
-.qr-status-scanned { color: #9a6b1f; background: #faf1df; }
-.qr-status-confirmed { color: #1f7a63; background: #e6f6f1; }
-.qr-status-expired, .qr-status-failed { color: #a34a44; background: #fbeceb; }
+.qr-status-loading, .qr-status-waiting { color: #5f6d72; background: #f1f4f5; }
+.qr-status-scanned { color: #9a6b1f; background: #fbf3e2; }
+.qr-status-confirmed { color: #1d9c8c; background: #e6f6f1; }
+.qr-status-expired, .qr-status-failed { color: #c7544c; background: #fbeceb; }
 
 .login-view { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
 .login-card { width: min(400px, 100%); padding: 34px 30px 30px; border-radius: 22px; background: rgba(255,255,255,.9); border: 1px solid rgba(210,219,221,.88); box-shadow: var(--shadow); backdrop-filter: blur(16px); animation: page-enter .35s ease; }

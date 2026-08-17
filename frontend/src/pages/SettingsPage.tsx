@@ -27,57 +27,22 @@ function QrLoginModal({ onClose }: { onClose: () => void }) {
   const [qrcodeImage, setQrcodeImage] = useState("");
   const [loginUrl, setLoginUrl] = useState("");
   const [message, setMessage] = useState("正在获取二维码…");
-  const sessionRef = useRef("");
+  const [attempt, setAttempt] = useState(0);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  const begin = async () => {
-    setStatus("loading");
-    setMessage("正在获取二维码…");
-    try {
-      const result = await api.startQrLogin();
-      if (!result.success || !result.session_id) throw new Error(result.error || "获取二维码失败");
-      sessionRef.current = result.session_id;
-      setQrcodeImage(result.qrcode_image || "");
-      setLoginUrl(result.login_url || "");
-      setStatus("waiting");
-      setMessage("请使用小米账号 App 扫码");
-    } catch (error) {
-      setStatus("failed");
-      setMessage((error as Error).message);
-    }
-  };
-
-  useEffect(() => { void begin(); }, []);
-
+  // A single effect drives fetch-QR + serial long-poll. It depends only on
+  // `attempt` (bumped to re-fetch the QR), NOT on `status`, so the poll loop
+  // runs uninterrupted and the scan-state change is reflected instantly.
   useEffect(() => {
-    if (status !== "waiting" && status !== "scanned") return;
     let cancelled = false;
+    let sessionId = "";
 
-    // Serial long-poll loop: each poll blocks on the server-side long-poll and
-    // returns the instant the scan state changes, then immediately re-polls.
-    // This gives near-zero feedback latency instead of a fixed 2s blind spot.
-    const run = async () => {
+    const poll = async () => {
       while (!cancelled) {
+        let result;
         try {
-          const result = await api.pollQrLogin(sessionRef.current);
-          if (cancelled) return;
-          if (result.state === "confirmed") {
-            setStatus("confirmed");
-            setMessage(result.message || "登录成功");
-            showToast("小米账号登录成功", "success");
-            await queryClient.invalidateQueries({ queryKey: queryKeys.config });
-            await queryClient.invalidateQueries({ queryKey: queryKeys.speakers });
-            window.setTimeout(() => onCloseRef.current(), 900);
-            return;
-          }
-          if (result.state === "expired" || result.state === "failed") {
-            setStatus(result.state as QrStatus);
-            setMessage(result.message || "登录失败");
-            return;
-          }
-          setStatus(result.state as QrStatus);
-          setMessage(result.message || "等待扫码");
+          result = await api.pollQrLogin(sessionId);
         } catch (error) {
           if (!cancelled) {
             setStatus("failed");
@@ -85,12 +50,57 @@ function QrLoginModal({ onClose }: { onClose: () => void }) {
           }
           return;
         }
+        if (cancelled) return;
+
+        if (result.state === "confirmed") {
+          setStatus("confirmed");
+          setMessage("登录成功");
+          showToast("小米账号登录成功", "success");
+          void queryClient.invalidateQueries({ queryKey: queryKeys.config });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.speakers });
+          window.setTimeout(() => onCloseRef.current(), 900);
+          return;
+        }
+        if (result.state === "expired" || result.state === "failed") {
+          setStatus(result.state as QrStatus);
+          setMessage(result.message || "登录失败");
+          return;
+        }
+        setStatus(result.state as QrStatus);
+        setMessage(result.message || "等待扫码");
       }
     };
 
-    void run();
+    const begin = async () => {
+      setStatus("loading");
+      setMessage("正在获取二维码…");
+      try {
+        const result = await api.startQrLogin();
+        if (cancelled) return;
+        if (!result.success || !result.session_id) throw new Error(result.error || "获取二维码失败");
+        sessionId = result.session_id;
+        setQrcodeImage(result.qrcode_image || "");
+        setLoginUrl(result.login_url || "");
+        setStatus("waiting");
+        setMessage("请使用小米账号 App 扫码");
+        void poll();
+      } catch (error) {
+        if (!cancelled) {
+          setStatus("failed");
+          setMessage((error as Error).message);
+        }
+      }
+    };
+
+    void begin();
     return () => { cancelled = true; };
-  }, [status, queryClient, showToast]);
+  }, [attempt, queryClient, showToast]);
+
+  const restart = () => {
+    setQrcodeImage("");
+    setLoginUrl("");
+    setAttempt((value) => value + 1);
+  };
 
   const showQr = status === "waiting" || status === "scanned";
 
@@ -106,7 +116,7 @@ function QrLoginModal({ onClose }: { onClose: () => void }) {
             <div className="qr-state">
               <AlertTriangle className="qr-error" size={32} />
               <p>{message}</p>
-              <button type="button" className="button secondary" onClick={() => void begin()}>重新获取</button>
+              <button type="button" className="button secondary" onClick={restart}>重新获取</button>
             </div>
           )}
         </div>

@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from miairx.auth.qr_login import (
+    MAX_POLL_COUNT,
     QRCodeLogin,
     QRLoginManager,
     STATE_CONFIRMED,
@@ -136,37 +137,15 @@ class TestQRCodeLoginPoll:
         assert result["state"] == STATE_FAILED
 
     @pytest.mark.asyncio
-    async def test_poll_coalesces_concurrent_requests(self):
-        """Concurrent polls must not stack multiple lp long-polls."""
+    async def test_poll_increments_count_and_caps(self):
+        """poll() must enforce MAX_POLL_COUNT."""
         qr = QRCodeLogin()
         qr._poll_url = "http://poll"
+        qr._poll_count = MAX_POLL_COUNT
 
-        calls = 0
-        started = asyncio.Event()
-        release = asyncio.Event()
+        result = await qr.poll()
 
-        async def fake_do_poll():
-            nonlocal calls
-            calls += 1
-            started.set()
-            await release.wait()
-            return {"state": STATE_WAITING, "message": "等待扫码"}
-
-        qr._do_poll = fake_do_poll
-
-        task1 = asyncio.create_task(qr.poll())
-        await started.wait()
-
-        # A second poll arrives while the first long-poll is still in flight;
-        # it must return the cached state immediately without a new lp request.
-        result2 = await qr.poll()
-        assert result2["state"] == STATE_WAITING
-        assert calls == 1
-
-        release.set()
-        result1 = await task1
-        assert result1["state"] == STATE_WAITING
-        assert calls == 1
+        assert result["state"] == STATE_EXPIRED
 
 
 class TestQRLoginManager:

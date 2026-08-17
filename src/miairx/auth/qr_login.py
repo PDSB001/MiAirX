@@ -28,7 +28,7 @@ import aiohttp
 
 log = logging.getLogger(__name__)
 
-POLL_TIMEOUT_SECONDS = 25
+POLL_TIMEOUT_SECONDS = 35
 MAX_POLL_COUNT = 20
 SESSION_TTL_SECONDS = 300
 
@@ -69,16 +69,6 @@ class QRCodeLogin:
         self._session: Optional[aiohttp.ClientSession] = None
         self._poll_url = ""
         self._poll_count = 0
-        # A Xiaomi lp endpoint can only be consumed by ONE in-flight long-poll.
-        # The frontend short-polls every 2s; if each poll fired its own 35s
-        # long-poll they would stack up and steal the scan-confirmation event.
-        # We coalesce concurrent polls: one long-poll runs, the rest read the
-        # cached last state immediately.
-        self._polling = False
-        self._last_state = STATE_WAITING
-        self._last_message = "等待扫码"
-        self._last_cookie = ""
-        self._last_user_id = ""
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -140,36 +130,20 @@ class QRCodeLogin:
         }
 
     async def poll(self) -> dict:
-        """Poll once, coalescing concurrent polls into a single long-poll.
+        """Poll once against the lp long-poll endpoint.
 
         Returns a dict with ``state`` and ``message``; a ``confirmed`` result
-        additionally carries ``cookie`` and ``user_id``.
+        additionally carries ``cookie`` and ``user_id``. The request blocks
+        until the scan state changes or ``POLL_TIMEOUT_SECONDS`` elapses.
         """
         if not self._poll_url:
             raise RuntimeError("会话未启动")
 
-        # A long-poll is already in flight; report the cached state instead of
-        # stacking another request against the same lp URL.
-        if self._polling:
-            result = {"state": self._last_state, "message": self._last_message}
-            if self._last_state == STATE_CONFIRMED:
-                result["cookie"] = self._last_cookie
-                result["user_id"] = self._last_user_id
-            return result
+        self._poll_count += 1
+        if self._poll_count > MAX_POLL_COUNT:
+            return {"state": STATE_EXPIRED, "message": "轮询次数超限，请重新获取二维码"}
 
-        self._polling = True
-        try:
-            self._poll_count += 1
-            if self._poll_count > MAX_POLL_COUNT:
-                return {"state": STATE_EXPIRED, "message": "轮询次数超限，请重新获取二维码"}
-            result = await self._do_poll()
-            self._last_state = result["state"]
-            self._last_message = result.get("message", "")
-            self._last_cookie = result.get("cookie", "")
-            self._last_user_id = result.get("user_id", "")
-            return result
-        finally:
-            self._polling = False
+        return await self._do_poll()
 
     async def _do_poll(self) -> dict:
         """Perform a single blocking long-poll against the lp URL."""

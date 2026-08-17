@@ -59,64 +59,27 @@ class TestCookieUtils:
 
 @pytest.mark.asyncio
 async def test_auth_manager_login_with_cookie(mock_session):
-    """Test login with cookie exchanges the service token."""
+    """Test cookie login seeds the token and skips the login() call."""
     config = AppConfig(
         cookie="userId=123456; passToken=abcdef",
         conf_path="/tmp/test",
     )
     auth = AuthManager(config, mock_session)
 
-    with patch.object(auth, "_exchange_service_token", new=AsyncMock(return_value=True)):
+    with patch("miairx.auth.manager.MiAccount") as MiAccountMock:
+        mock_account = MagicMock()
+        mock_account.token = None
+        MiAccountMock.return_value = mock_account
         await auth.login()
 
     assert auth.is_logged_in() is True
     assert auth.account is not None
     assert auth.mina_service is not None
-
-
-@pytest.mark.asyncio
-async def test_exchange_service_token_success(mock_session):
-    """Test service token exchange from a valid cookie."""
-    config = AppConfig(
-        cookie="userId=123456; passToken=abcdef",
-        conf_path="/tmp/test",
-    )
-    auth = AuthManager(config, mock_session)
-    auth.account = MagicMock()
-    auth.account.token = {"userId": "123456", "passToken": "abcdef", "deviceId": "miair_device"}
-    auth.account._serviceLogin = AsyncMock(return_value={
-        "code": 0,
-        "userId": "123456",
-        "location": "https://api2.mina.mi.com/sts?nonce=abc123",
-        "psecurity": "c2VjdXJpdHk=",
-    })
-    auth.account._securityTokenService = AsyncMock(return_value="service_token_xyz")
-
-    ok = await auth._exchange_service_token("micoapi")
-
-    assert ok is True
-    assert auth.account.token["micoapi"] == ("c2VjdXJpdHk=", "service_token_xyz")
-    auth.account._securityTokenService.assert_awaited_once_with(
-        "https://api2.mina.mi.com/sts?nonce=abc123", "abc123", "c2VjdXJpdHk="
-    )
-
-
-@pytest.mark.asyncio
-async def test_exchange_service_token_rejected(mock_session):
-    """Test service token exchange fails cleanly on a rejected cookie."""
-    config = AppConfig(
-        cookie="userId=123456; passToken=abcdef",
-        conf_path="/tmp/test",
-    )
-    auth = AuthManager(config, mock_session)
-    auth.account = MagicMock()
-    auth.account.token = {"userId": "123456", "passToken": "abcdef", "deviceId": "miair_device"}
-    auth.account._serviceLogin = AsyncMock(return_value={"code": 70016})
-
-    ok = await auth._exchange_service_token("micoapi")
-
-    assert ok is False
-    assert "micoapi" not in auth.account.token
+    # Cookie login must NOT call the miservice login() (which expects a
+    # password-login response and would crash on KeyError('passToken')).
+    assert auth.account.token["userId"] == "123456"
+    assert auth.account.token["passToken"] == "abcdef"
+    mock_account.login.assert_not_called()
 
 
 @pytest.mark.asyncio

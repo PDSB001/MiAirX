@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -222,14 +221,9 @@ async def handle_qr_poll(request: web.Request) -> web.Response:
     result = await app.qr_login.poll(session_id)
 
     if result.get("state") == STATE_CONFIRMED:
-        # Never leak the cookie or service token back to the client.
+        # Never leak the cookie back to the client.
         cookie = result.pop("cookie", None)
         user_id = result.get("user_id", "")
-        ssecurity = result.pop("ssecurity", "")
-        service_token = result.pop("service_token", "")
-        nonce = result.pop("nonce", "")
-        c_user_id = result.pop("c_user_id", "")
-        location = result.pop("location", "")
 
         config = request.app["config"]
         config_store = request.app["config_store"]
@@ -237,32 +231,6 @@ async def handle_qr_poll(request: web.Request) -> web.Response:
         config.account = ""
         config.password = ""
         await config_store.save(config)
-
-        # Persist the full token (including serviceToken) into miservice's
-        # token store. The QR passToken is an encrypted "V1:" blob that cannot
-        # be exchanged later, so the serviceToken we just obtained is the only
-        # working credential and must survive a restart.
-        if service_token:
-            try:
-                token = {
-                    "userId": user_id,
-                    "passToken": cookie.partition("passToken=")[2] if cookie and "passToken=" in cookie else "",
-                    "deviceId": "miair_device",
-                    "ssecurity": ssecurity,
-                    "serviceToken": service_token,
-                    "micoapi": [ssecurity, service_token],
-                }
-                if c_user_id:
-                    token["cUserId"] = c_user_id
-                token_path = config.mi_token_home
-                os.makedirs(os.path.dirname(token_path) or ".", exist_ok=True)
-                with open(token_path, "w", encoding="utf-8") as f:
-                    json.dump(token, f, ensure_ascii=False, indent=2)
-                log.info("QR login: persisted service token to %s", token_path)
-            except Exception as exc:  # noqa: BLE001
-                log.error(f"Failed to persist service token: {exc}")
-        else:
-            log.warning("QR login: no service token obtained; device list may fail after restart")
 
         # Re-authenticate and rebuild renderers with the new credentials.
         try:

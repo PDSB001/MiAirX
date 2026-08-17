@@ -23,6 +23,9 @@ def mock_session():
     """Mock aiohttp session."""
     session = AsyncMock()
     session.closed = False
+    # CookieJar.clear() is synchronous; a plain MagicMock avoids the AsyncMock
+    # returning an un-awaited coroutine when AuthManager clears stale cookies.
+    session.cookie_jar = MagicMock()
     return session
 
 

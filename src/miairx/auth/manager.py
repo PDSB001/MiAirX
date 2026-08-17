@@ -45,29 +45,33 @@ class AuthManager:
         if self.config.cookie:
             token_data = parse_cookie_string(self.config.cookie)
 
+        # A reused aiohttp session may still hold a stale serviceToken cookie
+        # from a previous login; that makes serviceLogin return an incomplete
+        # response (psecurity only) and breaks the token exchange. Always start
+        # from a clean cookie jar on (re)login.
+        if self.session and not self.session.closed:
+            self.session.cookie_jar.clear()
+
         # Create MiAccount
         if token_data.get("userId") and token_data.get("passToken"):
-            # Cookie-based login
+            # Cookie-based login. Exactly mirror miair-next: seed the token from
+            # the cookie, skip the login() call entirely, and mark logged-in.
+            # The real serviceToken exchange happens lazily on the first
+            # mi_request() inside miservice's own login(), which then persists
+            # the result to the token store.
             self.account = MiAccount(
                 self.session,
                 "",  # Empty account
                 "",  # Empty password
                 token_store=token_store,
             )
-            # MiAccount.__init__ already loaded any persisted token from the
-            # store. If it already carries a serviceToken for micoapi (written
-            # by QR login), keep it; otherwise seed a fresh token from the
-            # cookie so the legacy exchange path can try to fill it in.
-            existing = self.account.token or {}
-            has_service = existing.get("micoapi") and existing["micoapi"][1]
-            if not has_service:
-                self.account.token = {
-                    "userId": token_data["userId"],
-                    "passToken": token_data["passToken"],
-                    "deviceId": existing.get("deviceId") or "miair_device",
-                    "ssecurity": "",
-                    "serviceToken": "",
-                }
+            self.account.token = {
+                "userId": token_data["userId"],
+                "passToken": token_data["passToken"],
+                "deviceId": "miair_device",
+                "ssecurity": "",
+                "serviceToken": "",
+            }
             log.info(f"Using cookie login for user {mask_cookie_value(token_data['userId'])}")
         else:
             # Account/password login
@@ -83,25 +87,9 @@ class AuthManager:
 
         # Perform login
         if token_data.get("userId") and token_data.get("passToken"):
-            # Cookie login. Two paths:
-            #   1. QR login already persisted a serviceToken under token[micoapi]
-            #      -> use it directly, no exchange needed.
-            #   2. Legacy plaintext passToken -> exchange it for a serviceToken.
-            #      (A V1-encrypted passToken CANNOT be exchanged; it returns
-            #      70016, which is why QR login must persist the token itself.)
-            existing = self.account.token or {}
-            if existing.get("micoapi") and existing["micoapi"][1]:
-                self._logged_in = True
-                log.info("Cookie login successful (service token loaded from store)")
-            else:
-                self._logged_in = await self._exchange_service_token("micoapi")
-                # xiaomiio (MiIOService) is optional; failure must not block login.
-                await self._exchange_service_token("xiaomiio")
-                if self._logged_in:
-                    log.info("Cookie login successful")
-                else:
-                    log.error("Cookie login failed: could not exchange service token "
-                              "(cookie may be expired or in an unsupported format)")
+            # Cookie login: skip login() call, mark as logged in.
+            self._logged_in = True
+            log.info("Cookie login successful")
         else:
             try:
                 await self.account.login("micoapi")
@@ -152,52 +140,6 @@ class AuthManager:
         """Invalidate current session (for retry logic)."""
         self._logged_in = False
         log.info("Session invalidated, will re-login on next request")
-
-    async def _exchange_service_token(self, sid: str) -> bool:
-        """Exchange the cookie's passToken for a serviceToken for ``sid``.
-
-        miservice-fork 2.x's ``login()`` is incompatible with cookie re-login:
-        its ``serviceLogin`` response carries ``code == 0`` (success) but no
-        ``passToken`` field, so ``login()`` raises ``KeyError('passToken')``.
-        This method performs the same exchange directly and stores the result
-        under ``token[sid]`` so ``mi_request()`` never re-triggers ``login()``.
-
-        Returns True when a serviceToken was obtained and stored.
-        """
-        account = self.account
-        try:
-            resp = await account._serviceLogin(f"serviceLogin?sid={sid}&_json=true")
-        except Exception as exc:  # noqa: BLE001
-            log.error(f"serviceLogin({sid}) failed: {exc}")
-            return False
-
-        if resp.get("code") != 0:
-            log.warning(f"serviceLogin({sid}) returned code={resp.get('code')}: {resp.get('desc') or resp.get('description')}")
-            return False
-
-        location = resp.get("location", "")
-        nonce = resp.get("nonce", "")
-        if not nonce and location:
-            match = re.search(r"[?&]nonce=([^&]+)", location)
-            if match:
-                nonce = match.group(1)
-
-        # A cookie re-login returns "psecurity" instead of "ssecurity".
-        ssecurity = resp.get("ssecurity") or resp.get("psecurity", "")
-        if not location or not ssecurity:
-            log.warning(f"serviceLogin({sid}) missing location/ssecurity: {sorted(resp.keys())}")
-            return False
-
-        try:
-            service_token = await account._securityTokenService(location, nonce, ssecurity)
-        except Exception as exc:  # noqa: BLE001
-            log.error(f"Security token exchange failed for {sid}: {exc}")
-            return False
-
-        account.token["userId"] = resp.get("userId") or account.token.get("userId")
-        account.token[sid] = (ssecurity, service_token)
-        log.info(f"Service token exchanged for {sid}")
-        return True
 
     @staticmethod
     def _extract_error_code(err_msg: str) -> str:

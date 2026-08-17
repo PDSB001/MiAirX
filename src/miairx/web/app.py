@@ -19,6 +19,7 @@ from miairx.web.auth import (
     handle_auth_logout,
     handle_auth_status,
 )
+from miairx.auth.qr_login import STATE_CONFIRMED
 from miairx.web.diagnostics import build_diagnostics_bundle
 
 if TYPE_CHECKING:
@@ -55,6 +56,8 @@ def create_web_app(config: "AppConfig", app: "Application", config_store: Config
     web_app.router.add_get("/api/auth/status", handle_auth_status)
     web_app.router.add_post("/api/auth/login", handle_auth_login)
     web_app.router.add_post("/api/auth/logout", handle_auth_logout)
+    web_app.router.add_post("/api/auth/qrcode", handle_qr_start)
+    web_app.router.add_get("/api/auth/qrcode/poll", handle_qr_poll)
     web_app.router.add_get("/api/status", handle_status)
     web_app.router.add_get("/api/version", handle_version)
     web_app.router.add_get("/api/logs/stream", handle_log_stream)
@@ -189,6 +192,60 @@ async def handle_diagnostics(request: web.Request) -> web.Response:
             ),
         },
     )
+
+
+async def handle_qr_start(request: web.Request) -> web.Response:
+    """Start a Xiaomi QR-code login session and return the QR image."""
+    app = request.app["app"]
+    try:
+        result = await app.qr_login.start()
+        return web.json_response({"success": True, **result})
+    except Exception as exc:  # noqa: BLE001 - surface as a clean error payload
+        log.error(f"QR login start failed: {exc}")
+        return web.json_response(
+            {"success": False, "error": f"获取二维码失败: {exc}"},
+            status=500,
+        )
+
+
+async def handle_qr_poll(request: web.Request) -> web.Response:
+    """Poll a QR login session; persist credentials and hot-reload on success."""
+    app = request.app["app"]
+    session_id = request.query.get("session_id", "")
+    if not session_id:
+        return web.json_response(
+            {"success": False, "state": "failed", "message": "缺少 session_id"},
+            status=400,
+        )
+
+    result = await app.qr_login.poll(session_id)
+
+    if result.get("state") == STATE_CONFIRMED:
+        # Never leak the cookie back to the client.
+        cookie = result.pop("cookie", None)
+        user_id = result.get("user_id", "")
+
+        config = request.app["config"]
+        config_store = request.app["config_store"]
+        config.cookie = cookie or ""
+        config.account = ""
+        config.password = ""
+        await config_store.save(config)
+
+        # Re-authenticate and rebuild renderers with the new credentials.
+        try:
+            await app.reload_after_config_change({"cookie", "account", "password"})
+        except Exception as exc:  # noqa: BLE001 - reload failure must not 500 the poll
+            log.error(f"Reload after QR login failed: {exc}")
+
+        return web.json_response({
+            "success": True,
+            "state": STATE_CONFIRMED,
+            "message": "登录成功，服务已更新",
+            "user_id": user_id,
+        })
+
+    return web.json_response({"success": True, **result})
 
 
 async def handle_get_config(request: web.Request) -> web.Response:

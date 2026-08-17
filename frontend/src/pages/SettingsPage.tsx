@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronDown, ExternalLink, KeyRound, Network, RefreshCw, Rocket, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Activity, AlertTriangle, CheckCircle2, ChevronDown, ExternalLink, KeyRound, Network, QrCode, RefreshCw, Rocket, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { configQuery, queryKeys } from "../api/queries";
 import type { AppConfig, ConfigUpdate } from "../api/types";
+import { Modal } from "../components/Modal";
 import { ErrorState, LoadingState, PageHeader, Toggle } from "../components/Ui";
 import { useToast } from "../components/Toast";
 
@@ -15,6 +16,90 @@ interface Draft extends AppConfig {
 
 function makeDraft(config: AppConfig): Draft {
   return { ...config, password: "", cookieUserId: "", cookiePassToken: "", webPassword: "" };
+}
+
+type QrStatus = "loading" | "waiting" | "scanned" | "confirmed" | "expired" | "failed";
+
+function QrLoginModal({ onClose }: { onClose: () => void }) {
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const [status, setStatus] = useState<QrStatus>("loading");
+  const [qrcodeImage, setQrcodeImage] = useState("");
+  const [loginUrl, setLoginUrl] = useState("");
+  const [message, setMessage] = useState("正在获取二维码…");
+  const sessionRef = useRef("");
+
+  const begin = async () => {
+    setStatus("loading");
+    setMessage("正在获取二维码…");
+    try {
+      const result = await api.startQrLogin();
+      if (!result.success || !result.session_id) throw new Error(result.error || "获取二维码失败");
+      sessionRef.current = result.session_id;
+      setQrcodeImage(result.qrcode_image || "");
+      setLoginUrl(result.login_url || "");
+      setStatus("waiting");
+      setMessage("请使用小米账号 App 扫码");
+    } catch (error) {
+      setStatus("failed");
+      setMessage((error as Error).message);
+    }
+  };
+
+  useEffect(() => { void begin(); }, []);
+
+  useEffect(() => {
+    if (status !== "waiting" && status !== "scanned") return;
+    const timer = setInterval(async () => {
+      try {
+        const result = await api.pollQrLogin(sessionRef.current);
+        if (result.state === "confirmed") {
+          clearInterval(timer);
+          setStatus("confirmed");
+          setMessage(result.message || "登录成功");
+          showToast("小米账号登录成功", "success");
+          await queryClient.invalidateQueries({ queryKey: queryKeys.config });
+          await queryClient.invalidateQueries({ queryKey: queryKeys.speakers });
+          setTimeout(onClose, 900);
+          return;
+        }
+        if (result.state === "expired" || result.state === "failed") {
+          clearInterval(timer);
+          setStatus(result.state as QrStatus);
+          setMessage(result.message || "登录失败");
+          return;
+        }
+        setStatus(result.state as QrStatus);
+        setMessage(result.message || "等待扫码");
+      } catch (error) {
+        clearInterval(timer);
+        setStatus("failed");
+        setMessage((error as Error).message);
+      }
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [status, queryClient, showToast, onClose]);
+
+  const showQr = status === "waiting" || status === "scanned";
+
+  return (
+    <Modal open title="扫码登录小米账号" description="使用小米账号 App 扫码，登录后凭据自动写入并生效。" onClose={onClose}>
+      <div className="qr-body">
+        {status === "loading" && <div className="qr-placeholder"><RefreshCw className="spin" size={28} /><p>正在获取二维码…</p></div>}
+        {showQr && qrcodeImage && <img className="qr-image" src={qrcodeImage} alt="登录二维码" />}
+        {showQr && !qrcodeImage && loginUrl && <a className="button secondary" href={loginUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} />打开登录链接</a>}
+        {status === "confirmed" && <div className="qr-placeholder"><CheckCircle2 className="qr-success" size={28} /><p>登录成功</p></div>}
+        {(status === "expired" || status === "failed") && (
+          <div className="qr-placeholder">
+            <AlertTriangle className="qr-error" size={28} />
+            <p>{message}</p>
+            <button type="button" className="button secondary" onClick={() => void begin()}>重新获取</button>
+          </div>
+        )}
+        {showQr && <p className="qr-hint">{message}</p>}
+      </div>
+    </Modal>
+  );
 }
 
 function VersionPanel() {
@@ -61,6 +146,7 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const config = useQuery(configQuery);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
   useEffect(() => { if (!draft && config.data) setDraft(makeDraft(config.data)); }, [config.data, draft]);
 
   const save = useMutation({
@@ -117,7 +203,7 @@ export function SettingsPage() {
       {draft && (
         <form onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>
           <section className="settings-section">
-            <div className="settings-section-title"><div className="settings-icon"><UserRound size={20} /></div><div><h2>小米账号</h2><p>用于读取账号下的设备并调用音箱播放能力。</p></div></div>
+            <div className="settings-section-title"><div className="settings-icon"><UserRound size={20} /></div><div><h2>小米账号</h2><p>用于读取账号下的设备并调用音箱播放能力。</p></div><button type="button" className="button secondary small" onClick={() => setQrOpen(true)}><QrCode size={15} />扫码登录</button></div>
             <div className="form-grid two-columns">
               <label className="field"><span>账号</span><input autoComplete="username" value={draft.account} onChange={(event) => update("account", event.target.value)} placeholder="手机号或邮箱" /></label>
               <label className="field"><span>密码</span><input type="password" autoComplete="new-password" value={draft.password} onChange={(event) => update("password", event.target.value)} placeholder={config.data?.password ? "已保存；留空保持不变" : "输入小米账号密码"} /></label>
@@ -172,6 +258,7 @@ export function SettingsPage() {
           <div className={`save-bar ${hasChanges ? "has-changes" : "is-saved"}`}><div><strong>{hasChanges ? "有未保存的更改" : "配置已是最新"}</strong><span>{hasChanges ? "保存不会自动重启，也不会打断正在播放的内容。" : "修改任意设置后，可在这里统一保存。"}</span></div><button type="submit" className="button primary large" disabled={!hasChanges || save.isPending}><Save size={18} />{save.isPending ? "正在保存" : hasChanges ? "保存全部设置" : "已保存"}</button></div>
         </form>
       )}
+      {qrOpen && <QrLoginModal onClose={() => setQrOpen(false)} />}
     </div>
   );
 }

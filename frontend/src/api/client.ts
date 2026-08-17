@@ -1,4 +1,4 @@
-import type { ActionResponse, AppConfig, AppStatus, AuthStatus, ConfigUpdate, PositionsResponse, Speaker, VersionInfo, XiaomiDevice } from "./types";
+import type { ActionResponse, AppConfig, AppStatus, AuthStatus, ConfigUpdate, PositionsResponse, QrPollResponse, QrStartResponse, Speaker, VersionInfo, XiaomiDevice } from "./types";
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
@@ -36,6 +36,8 @@ export const api = {
   authStatus: () => request<AuthStatus>("/api/auth/status"),
   login: (password: string) => post<ActionResponse>("/api/auth/login", { password }),
   logout: () => post<ActionResponse>("/api/auth/logout", {}),
+  startQrLogin: () => post<QrStartResponse>("/api/auth/qrcode", {}),
+  pollQrLogin: (sessionId: string) => request<QrPollResponse>(`/api/auth/qrcode/poll?session_id=${encodeURIComponent(sessionId)}`),
   status: () => request<AppStatus>("/api/status"),
   version: (force = false) => request<VersionInfo>(`/api/version${force ? "?force=1" : ""}`),
   config: () => request<AppConfig>("/api/config"),

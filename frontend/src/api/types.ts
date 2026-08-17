@@ -71,6 +71,21 @@ export interface VersionInfo {
   error: string | null;
 }
 
+export interface QrStartResponse {
+  success: boolean;
+  session_id?: string;
+  qrcode_image?: string;
+  login_url?: string;
+  error?: string;
+}
+
+export interface QrPollResponse {
+  success: boolean;
+  state: string;
+  message?: string;
+  user_id?: string;
+}
+
 export type ConfigUpdate = Partial<AppConfig>;
 
 export interface ActionResponse {

@@ -11,6 +11,7 @@ from aiohttp import web
 from zeroconf import Zeroconf, IPVersion
 
 from miairx.auth.manager import AuthManager
+from miairx.auth.qr_login import QRLoginManager
 from miairx.config.discovery import detect_local_ip
 from miairx.config.models import AppConfig
 from miairx.config.store import ConfigStore
@@ -132,6 +133,7 @@ class Application:
         self.config_store = ConfigStore(config.conf_path)
         self.session: Optional[aiohttp.ClientSession] = None
         self.auth: Optional[AuthManager] = None
+        self.qr_login: QRLoginManager = QRLoginManager()
         self.speaker_manager: Optional[SpeakerManager] = None
         
         # DLNA components
@@ -386,6 +388,9 @@ class Application:
             # Close authentication
             if self.auth:
                 await self.auth.close()
+
+            # Close any in-flight QR login sessions
+            await self.qr_login.close_all()
 
             # Close HTTP session
             if self.session and not self.session.closed:

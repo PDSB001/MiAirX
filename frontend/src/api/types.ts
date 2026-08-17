@@ -50,15 +50,11 @@ export interface AppConfig {
   web_port: number;
   airplay_port_start: number;
   verbose: boolean;
-  proxy_enabled: boolean;
-  auto_play_on_set_uri: boolean;
   auto_resume_on_interrupt: boolean;
   resume_delay_seconds: number;
   default_volume: number;
   follow_device_volume: boolean;
-  enable_voice_control: boolean;
   auto_restart: boolean;
-  voice_poll_interval: number;
   web_password: string;
 }
 

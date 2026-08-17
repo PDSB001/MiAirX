@@ -6,9 +6,9 @@ import { ToastProvider } from "./components/Toast";
 
 const config = {
   account: "user@example.com", password: "***", mi_did: "123", cookie: "***", hostname: "192.168.1.5",
-  dlna_port: 8200, web_port: 8300, airplay_port_start: 7000, verbose: false, proxy_enabled: true, auto_play_on_set_uri: false,
+  dlna_port: 8200, web_port: 8300, airplay_port_start: 7000, verbose: false,
   auto_resume_on_interrupt: true, resume_delay_seconds: 5, default_volume: 30, follow_device_volume: true,
-  enable_voice_control: false, auto_restart: false, voice_poll_interval: 1,
+  auto_restart: false,
 };
 
 function json(value: unknown) { return Promise.resolve(new Response(JSON.stringify(value), { status: 200 })); }

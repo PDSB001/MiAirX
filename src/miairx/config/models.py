@@ -90,15 +90,11 @@ class AppConfig(BaseModel):
     airplay_port_start: int = 7000
     conf_path: str = "conf"
     verbose: bool = False
-    proxy_enabled: bool = False
-    auto_play_on_set_uri: bool = False
     auto_resume_on_interrupt: bool = False
     resume_delay_seconds: int = 5
     default_volume: int = 30
     follow_device_volume: bool = True
-    enable_voice_control: bool = False
     auto_restart: bool = False
-    voice_poll_interval: int = 1
     web_password: str = ""
     speakers: dict[str, SpeakerConfig] = Field(default_factory=dict)
 

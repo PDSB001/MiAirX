@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronDown, ExternalLink, FlaskConical, KeyRound, Network, RefreshCw, Rocket, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
+import { Activity, ChevronDown, ExternalLink, KeyRound, Network, RefreshCw, Rocket, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { configQuery, queryKeys } from "../api/queries";
@@ -74,11 +74,10 @@ export function SettingsPage() {
       if (draft.resume_delay_seconds < 1 || draft.resume_delay_seconds > 15) throw new Error("恢复延迟必须在 1–15 秒之间");
       const payload: ConfigUpdate = {
         account: draft.account.trim(), hostname: draft.hostname.trim(), dlna_port: draft.dlna_port, web_port: draft.web_port, airplay_port_start: draft.airplay_port_start,
-        verbose: draft.verbose, proxy_enabled: draft.proxy_enabled, auto_play_on_set_uri: draft.auto_play_on_set_uri,
+        verbose: draft.verbose,
         auto_resume_on_interrupt: draft.auto_resume_on_interrupt, resume_delay_seconds: draft.resume_delay_seconds,
         default_volume: draft.default_volume, follow_device_volume: draft.follow_device_volume,
-        enable_voice_control: draft.enable_voice_control, auto_restart: draft.auto_restart,
-        voice_poll_interval: draft.voice_poll_interval,
+        auto_restart: draft.auto_restart,
       };
       if (draft.password.trim()) payload.password = draft.password;
       if (draft.cookieUserId.trim() && draft.cookiePassToken.trim()) payload.cookie = `userId=${draft.cookieUserId.trim()}; passToken=${draft.cookiePassToken.trim()}`;
@@ -168,21 +167,6 @@ export function SettingsPage() {
               <Toggle checked={draft.verbose} onChange={(value) => update("verbose", value)} label="详细日志" description="输出更多诊断信息，排障完成后建议关闭。" />
             </div>
           </section>
-
-          <details className="compatibility-panel">
-            <summary><span className="compatibility-symbol"><FlaskConical size={18} /></span><span><strong>兼容性保留项</strong><small>用于旧配置兼容，当前主流程尚未接入</small></span><ChevronDown className="details-chevron" size={18} /></summary>
-            <div className="compatibility-content">
-              <p>这些字段可以保存，但当前版本不会改变媒体代理或语音控制行为。通常保持原值即可。</p>
-              <div className="toggle-grid">
-                <Toggle checked={draft.proxy_enabled} onChange={(value) => update("proxy_enabled", value)} label="媒体代理标志" description="当前 DLNA 路径会自动使用代理，此标志暂不控制它。" />
-                <Toggle checked={draft.auto_play_on_set_uri} onChange={(value) => update("auto_play_on_set_uri", value)} label="Set URI 自动播放标志" description="保留字段，当前播放状态机尚未读取。" />
-                <Toggle checked={draft.enable_voice_control} onChange={(value) => update("enable_voice_control", value)} label="语音控制标志" description="保留字段，当前没有独立语音控制器。" />
-              </div>
-              <div className="form-grid three-columns compact-fields">
-                <label className="field"><span>语音轮询间隔</span><div className="suffix-input"><input type="number" min={1} max={60} value={draft.voice_poll_interval} onChange={(event) => update("voice_poll_interval", Number(event.target.value))} /><b>秒</b></div></label>
-              </div>
-            </div>
-          </details>
 
           <VersionPanel />
           <div className={`save-bar ${hasChanges ? "has-changes" : "is-saved"}`}><div><strong>{hasChanges ? "有未保存的更改" : "配置已是最新"}</strong><span>{hasChanges ? "保存不会自动重启，也不会打断正在播放的内容。" : "修改任意设置后，可在这里统一保存。"}</span></div><button type="submit" className="button primary large" disabled={!hasChanges || save.isPending}><Save size={18} />{save.isPending ? "正在保存" : hasChanges ? "保存全部设置" : "已保存"}</button></div>

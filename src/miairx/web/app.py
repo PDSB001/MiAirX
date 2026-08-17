@@ -206,15 +206,11 @@ async def handle_get_config(request: web.Request) -> web.Response:
         "web_port": config.web_port,
         "airplay_port_start": config.airplay_port_start,
         "verbose": config.verbose,
-        "proxy_enabled": config.proxy_enabled,
-        "auto_play_on_set_uri": config.auto_play_on_set_uri,
         "auto_resume_on_interrupt": config.auto_resume_on_interrupt,
         "resume_delay_seconds": config.resume_delay_seconds,
         "default_volume": config.default_volume,
         "follow_device_volume": config.follow_device_volume,
-        "enable_voice_control": config.enable_voice_control,
         "auto_restart": config.auto_restart,
-        "voice_poll_interval": config.voice_poll_interval,
         "web_password": "***" if config.web_password else "",
     }
     
@@ -251,20 +247,19 @@ async def handle_save_config(request: web.Request) -> web.Response:
         # affected components after persisting.
         int_fields = {
             "dlna_port", "web_port", "airplay_port_start",
-            "resume_delay_seconds", "default_volume", "voice_poll_interval",
+            "resume_delay_seconds", "default_volume",
         }
         bool_fields = {
-            "verbose", "proxy_enabled", "auto_play_on_set_uri",
-            "auto_resume_on_interrupt", "follow_device_volume",
-            "enable_voice_control", "auto_restart",
+            "verbose", "auto_resume_on_interrupt",
+            "follow_device_volume", "auto_restart",
         }
         changed: set[str] = set()
         for field in (
             "account", "mi_did", "cookie", "hostname", "dlna_port",
-            "web_port", "airplay_port_start", "verbose", "proxy_enabled",
-            "auto_play_on_set_uri", "auto_resume_on_interrupt",
+            "web_port", "airplay_port_start", "verbose",
+            "auto_resume_on_interrupt",
             "resume_delay_seconds", "default_volume", "follow_device_volume",
-            "enable_voice_control", "auto_restart", "voice_poll_interval",
+            "auto_restart",
         ):
             if field in data:
                 old = getattr(config, field)
@@ -312,10 +307,6 @@ async def handle_save_config(request: web.Request) -> web.Response:
             config.airplay_port_start = int(data["airplay_port_start"])
         if "verbose" in data:
             config.verbose = bool(data["verbose"])
-        if "proxy_enabled" in data:
-            config.proxy_enabled = bool(data["proxy_enabled"])
-        if "auto_play_on_set_uri" in data:
-            config.auto_play_on_set_uri = bool(data["auto_play_on_set_uri"])
         if "auto_resume_on_interrupt" in data:
             config.auto_resume_on_interrupt = bool(data["auto_resume_on_interrupt"])
         if "resume_delay_seconds" in data:
@@ -324,12 +315,8 @@ async def handle_save_config(request: web.Request) -> web.Response:
             config.default_volume = int(data["default_volume"])
         if "follow_device_volume" in data:
             config.follow_device_volume = bool(data["follow_device_volume"])
-        if "enable_voice_control" in data:
-            config.enable_voice_control = bool(data["enable_voice_control"])
         if "auto_restart" in data:
             config.auto_restart = bool(data["auto_restart"])
-        if "voice_poll_interval" in data:
-            config.voice_poll_interval = int(data["voice_poll_interval"])
         if "web_password" in data and data["web_password"] not in ("", "***"):
             config.web_password = data["web_password"]
 

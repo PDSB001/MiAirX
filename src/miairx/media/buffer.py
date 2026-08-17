@@ -87,8 +87,12 @@ class MediaBuffer:
                 # until the complete track is buffered.
                 self._headers_event.set()
 
-                # Download data
-                async for chunk in response.content.iter_chunked(8192):
+                # Download data. A larger chunk reduces per-iteration lock
+                # acquisition and event signalling overhead, letting the
+                # pre-buffer (started on SetAVTransportURI) pull more bytes in
+                # the gap before the speaker requests the proxy URL, which
+                # shortens the time-to-first-sound.
+                async for chunk in response.content.iter_chunked(64 * 1024):
                     async with self._lock:
                         if len(self.data) + len(chunk) > self.max_memory:
                             buffered_size = len(self.data) + len(chunk)

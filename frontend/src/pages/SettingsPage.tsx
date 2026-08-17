@@ -52,53 +52,68 @@ function QrLoginModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (status !== "waiting" && status !== "scanned") return;
-    const timer = setInterval(async () => {
-      try {
-        const result = await api.pollQrLogin(sessionRef.current);
-        if (result.state === "confirmed") {
-          clearInterval(timer);
-          setStatus("confirmed");
-          setMessage(result.message || "登录成功");
-          showToast("小米账号登录成功", "success");
-          await queryClient.invalidateQueries({ queryKey: queryKeys.config });
-          await queryClient.invalidateQueries({ queryKey: queryKeys.speakers });
-          window.setTimeout(() => onCloseRef.current(), 900);
-          return;
-        }
-        if (result.state === "expired" || result.state === "failed") {
-          clearInterval(timer);
+    let cancelled = false;
+
+    // Serial long-poll loop: each poll blocks on the server-side long-poll and
+    // returns the instant the scan state changes, then immediately re-polls.
+    // This gives near-zero feedback latency instead of a fixed 2s blind spot.
+    const run = async () => {
+      while (!cancelled) {
+        try {
+          const result = await api.pollQrLogin(sessionRef.current);
+          if (cancelled) return;
+          if (result.state === "confirmed") {
+            setStatus("confirmed");
+            setMessage(result.message || "登录成功");
+            showToast("小米账号登录成功", "success");
+            await queryClient.invalidateQueries({ queryKey: queryKeys.config });
+            await queryClient.invalidateQueries({ queryKey: queryKeys.speakers });
+            window.setTimeout(() => onCloseRef.current(), 900);
+            return;
+          }
+          if (result.state === "expired" || result.state === "failed") {
+            setStatus(result.state as QrStatus);
+            setMessage(result.message || "登录失败");
+            return;
+          }
           setStatus(result.state as QrStatus);
-          setMessage(result.message || "登录失败");
+          setMessage(result.message || "等待扫码");
+        } catch (error) {
+          if (!cancelled) {
+            setStatus("failed");
+            setMessage((error as Error).message);
+          }
           return;
         }
-        setStatus(result.state as QrStatus);
-        setMessage(result.message || "等待扫码");
-      } catch (error) {
-        clearInterval(timer);
-        setStatus("failed");
-        setMessage((error as Error).message);
       }
-    }, 2000);
-    return () => clearInterval(timer);
+    };
+
+    void run();
+    return () => { cancelled = true; };
   }, [status, queryClient, showToast]);
 
   const showQr = status === "waiting" || status === "scanned";
 
   return (
-    <Modal open title="扫码登录小米账号" description="使用小米账号 App 扫码，登录后凭据自动写入并生效。" onClose={onClose}>
+    <Modal open title="扫码登录小米账号" description="用小米账号 App 扫码，登录后凭据自动写入并立即生效。" onClose={onClose}>
       <div className="qr-body">
-        {status === "loading" && <div className="qr-placeholder"><RefreshCw className="spin" size={28} /><p>正在获取二维码…</p></div>}
-        {showQr && qrcodeImage && <img className="qr-image" src={qrcodeImage} alt="登录二维码" />}
-        {showQr && !qrcodeImage && loginUrl && <a className="button secondary" href={loginUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} />打开登录链接</a>}
-        {status === "confirmed" && <div className="qr-placeholder"><CheckCircle2 className="qr-success" size={28} /><p>登录成功</p></div>}
-        {(status === "expired" || status === "failed") && (
-          <div className="qr-placeholder">
-            <AlertTriangle className="qr-error" size={28} />
-            <p>{message}</p>
-            <button type="button" className="button secondary" onClick={() => void begin()}>重新获取</button>
-          </div>
-        )}
-        {showQr && <p className="qr-hint">{message}</p>}
+        <div className="qr-stage">
+          {status === "loading" && <div className="qr-state"><RefreshCw className="spin" size={30} /><p>正在获取二维码…</p></div>}
+          {showQr && qrcodeImage && <img className="qr-image" src={qrcodeImage} alt="登录二维码" />}
+          {showQr && !qrcodeImage && loginUrl && <a className="button secondary" href={loginUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} />打开登录链接</a>}
+          {status === "confirmed" && <div className="qr-state"><CheckCircle2 className="qr-success" size={32} /><p>登录成功</p></div>}
+          {(status === "expired" || status === "failed") && (
+            <div className="qr-state">
+              <AlertTriangle className="qr-error" size={32} />
+              <p>{message}</p>
+              <button type="button" className="button secondary" onClick={() => void begin()}>重新获取</button>
+            </div>
+          )}
+        </div>
+        <div className={`qr-status qr-status-${status}`} role="status">
+          <span className="qr-status-dot" />
+          <span>{message}</span>
+        </div>
       </div>
     </Modal>
   );

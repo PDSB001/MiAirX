@@ -28,7 +28,7 @@ import aiohttp
 
 log = logging.getLogger(__name__)
 
-POLL_TIMEOUT_SECONDS = 35
+POLL_TIMEOUT_SECONDS = 25
 MAX_POLL_COUNT = 20
 SESSION_TTL_SECONDS = 300
 

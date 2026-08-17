@@ -120,18 +120,13 @@ class AppConfig(BaseModel):
         if not self.hostname:
             import os
             self.hostname = os.getenv("MIAIR_HOSTNAME", "")
-        if not self.hostname:
-            self.hostname = self._detect_local_ip()
+        # hostname is deliberately NOT auto-detected here. A blank value is
+        # resolved at point-of-use (Application.resolve_hostname) so the LAN
+        # address follows DHCP changes instead of being pinned to a stale IP
+        # inside the persisted config.json.
         
         # Validate resume_delay_seconds
         self.resume_delay_seconds = max(1, min(15, self.resume_delay_seconds))
-
-    @staticmethod
-    def _detect_local_ip() -> str:
-        """Auto-detect local LAN IP address."""
-        from miairx.config.discovery import detect_local_ip
-
-        return detect_local_ip()
 
     @property
     def log_file(self) -> str:

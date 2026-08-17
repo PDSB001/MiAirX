@@ -25,9 +25,6 @@ class ConfigStore:
             
             # Create default config
             config = AppConfig(conf_path=str(self.conf_path))
-            # Do not persist the auto-detected hostname: DHCP leases change,
-            # so a blank hostname should be re-detected on every startup.
-            config.hostname = ""
 
             # Save default config to file
             try:

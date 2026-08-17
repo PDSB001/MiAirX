@@ -183,6 +183,14 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(14, 119, 108
 .credential-title strong { color: #4e5c61; font-size: 11px; }
 .credential-title small { color: #8a969a; font-size: 9px; }
 .credential-title em { margin-left: auto; padding: 4px 7px; border-radius: 6px; color: var(--brand); background: var(--brand-soft); font-size: 9px; font-style: normal; font-weight: 750; }
+.login-tabs { display: inline-flex; gap: 4px; margin-bottom: 20px; padding: 4px; border-radius: 12px; background: #eef2f2; }
+.login-tabs button { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border: none; border-radius: 9px; background: transparent; color: #66747a; font-size: 11.5px; font-weight: 650; cursor: pointer; transition: background .16s, color .16s, box-shadow .16s; }
+.login-tabs button:hover { color: var(--ink); }
+.login-tabs button.active { background: #fff; color: var(--brand); box-shadow: 0 2px 8px rgba(40,62,65,.1); }
+.login-saved-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
+.qr-login-panel { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 18px; border-radius: 13px; background: #f7f9f9; border: 1px dashed #d3dcde; }
+.qr-login-panel p { margin: 0; color: #5f6d72; font-size: 12px; line-height: 1.65; }
+.qr-login-panel small { color: #8a969a; font-size: 10px; }
 .toggle-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .toggle-row { position: relative; min-height: 67px; padding: 14px 58px 14px 15px; display: flex; align-items: center; border: 1px solid #e0e6e7; border-radius: 13px; background: #fafcfc; cursor: pointer; }
 .toggle-row:hover { border-color: #cbd6d7; }

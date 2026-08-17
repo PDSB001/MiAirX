@@ -1,5 +1,6 @@
 """Unit tests for the Xiaomi QR-code login helper (offline, no network)."""
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -133,6 +134,39 @@ class TestQRCodeLoginPoll:
             result = await qr.poll()
 
         assert result["state"] == STATE_FAILED
+
+    @pytest.mark.asyncio
+    async def test_poll_coalesces_concurrent_requests(self):
+        """Concurrent polls must not stack multiple lp long-polls."""
+        qr = QRCodeLogin()
+        qr._poll_url = "http://poll"
+
+        calls = 0
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def fake_do_poll():
+            nonlocal calls
+            calls += 1
+            started.set()
+            await release.wait()
+            return {"state": STATE_WAITING, "message": "等待扫码"}
+
+        qr._do_poll = fake_do_poll
+
+        task1 = asyncio.create_task(qr.poll())
+        await started.wait()
+
+        # A second poll arrives while the first long-poll is still in flight;
+        # it must return the cached state immediately without a new lp request.
+        result2 = await qr.poll()
+        assert result2["state"] == STATE_WAITING
+        assert calls == 1
+
+        release.set()
+        result1 = await task1
+        assert result1["state"] == STATE_WAITING
+        assert calls == 1
 
 
 class TestQRLoginManager:

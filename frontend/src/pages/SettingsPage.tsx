@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, CheckCircle2, ChevronDown, ExternalLink, KeyRound, Network, QrCode, RefreshCw, Rocket, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, ChevronDown, ExternalLink, Fingerprint, KeyRound, Network, QrCode, RefreshCw, Rocket, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { configQuery, queryKeys } from "../api/queries";
@@ -28,6 +28,8 @@ function QrLoginModal({ onClose }: { onClose: () => void }) {
   const [loginUrl, setLoginUrl] = useState("");
   const [message, setMessage] = useState("正在获取二维码…");
   const sessionRef = useRef("");
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const begin = async () => {
     setStatus("loading");
@@ -60,7 +62,7 @@ function QrLoginModal({ onClose }: { onClose: () => void }) {
           showToast("小米账号登录成功", "success");
           await queryClient.invalidateQueries({ queryKey: queryKeys.config });
           await queryClient.invalidateQueries({ queryKey: queryKeys.speakers });
-          setTimeout(onClose, 900);
+          window.setTimeout(() => onCloseRef.current(), 900);
           return;
         }
         if (result.state === "expired" || result.state === "failed") {
@@ -78,7 +80,7 @@ function QrLoginModal({ onClose }: { onClose: () => void }) {
       }
     }, 2000);
     return () => clearInterval(timer);
-  }, [status, queryClient, showToast, onClose]);
+  }, [status, queryClient, showToast]);
 
   const showQr = status === "waiting" || status === "scanned";
 
@@ -147,6 +149,7 @@ export function SettingsPage() {
   const config = useQuery(configQuery);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
+  const [loginMethod, setLoginMethod] = useState<"password" | "cookie" | "qr">("password");
   useEffect(() => { if (!draft && config.data) setDraft(makeDraft(config.data)); }, [config.data, draft]);
 
   const save = useMutation({
@@ -203,18 +206,34 @@ export function SettingsPage() {
       {draft && (
         <form onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>
           <section className="settings-section">
-            <div className="settings-section-title"><div className="settings-icon"><UserRound size={20} /></div><div><h2>小米账号</h2><p>用于读取账号下的设备并调用音箱播放能力。</p></div><button type="button" className="button secondary small" onClick={() => setQrOpen(true)}><QrCode size={15} />扫码登录</button></div>
-            <div className="form-grid two-columns">
-              <label className="field"><span>账号</span><input autoComplete="username" value={draft.account} onChange={(event) => update("account", event.target.value)} placeholder="手机号或邮箱" /></label>
-              <label className="field"><span>密码</span><input type="password" autoComplete="new-password" value={draft.password} onChange={(event) => update("password", event.target.value)} placeholder={config.data?.password ? "已保存；留空保持不变" : "输入小米账号密码"} /></label>
+            <div className="settings-section-title"><div className="settings-icon"><UserRound size={20} /></div><div><h2>小米账号</h2><p>用于读取账号下的设备并调用音箱播放能力。</p></div></div>
+            <div className="login-tabs" role="tablist" aria-label="登录方式">
+              <button type="button" role="tab" aria-selected={loginMethod === "password"} className={loginMethod === "password" ? "active" : ""} onClick={() => setLoginMethod("password")}><KeyRound size={15} />密码登录</button>
+              <button type="button" role="tab" aria-selected={loginMethod === "cookie"} className={loginMethod === "cookie" ? "active" : ""} onClick={() => setLoginMethod("cookie")}><Fingerprint size={15} />Cookie 登录{config.data?.cookie && <em className="login-saved-dot" aria-label="已保存凭据" />}</button>
+              <button type="button" role="tab" aria-selected={loginMethod === "qr"} className={loginMethod === "qr" ? "active" : ""} onClick={() => setLoginMethod("qr")}><QrCode size={15} />扫码登录</button>
             </div>
-            <div className="credential-panel">
-              <div className="credential-title"><KeyRound size={18} /><span><strong>Cookie 登录</strong><small>密码登录受限时可使用 userId 与 passToken。</small></span>{config.data?.cookie && <em>已保存</em>}</div>
+
+            {loginMethod === "password" && (
+              <div className="form-grid two-columns">
+                <label className="field"><span>账号</span><input autoComplete="username" value={draft.account} onChange={(event) => update("account", event.target.value)} placeholder="手机号或邮箱" /></label>
+                <label className="field"><span>密码</span><input type="password" autoComplete="new-password" value={draft.password} onChange={(event) => update("password", event.target.value)} placeholder={config.data?.password ? "已保存；留空保持不变" : "输入小米账号密码"} /></label>
+              </div>
+            )}
+
+            {loginMethod === "cookie" && (
               <div className="form-grid two-columns">
                 <label className="field"><span>userId</span><input value={draft.cookieUserId} onChange={(event) => update("cookieUserId", event.target.value)} placeholder="输入新的 userId" /></label>
                 <label className="field"><span>passToken</span><input type="password" value={draft.cookiePassToken} onChange={(event) => update("cookiePassToken", event.target.value)} placeholder={config.data?.cookie ? "已保存；留空保持不变" : "输入 passToken"} /></label>
               </div>
-            </div>
+            )}
+
+            {loginMethod === "qr" && (
+              <div className="qr-login-panel">
+                <p>使用小米账号 App 扫码登录，无需输入账号密码。登录成功后凭据自动写入并立即生效。</p>
+                <button type="button" className="button secondary" onClick={() => setQrOpen(true)}><QrCode size={15} />开始扫码登录</button>
+                {config.data?.cookie && <small>当前已保存 Cookie 凭据，扫码登录后将覆盖。</small>}
+              </div>
+            )}
           </section>
 
           <section className="settings-section">

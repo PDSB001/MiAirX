@@ -82,8 +82,25 @@ async def test_save_new_password_reissues_token() -> None:
 
 
 @pytest.mark.asyncio
-async def test_save_unchanged_password_does_not_reissue() -> None:
-    """A placeholder/empty web_password must not trigger token re-issue."""
+async def test_save_placeholder_password_does_not_change() -> None:
+    """The masked placeholder '***' means unchanged and must not re-issue."""
+    config = AppConfig(web_password="existing")
+    store = SimpleNamespace(save=AsyncMock())
+    request = SimpleNamespace(
+        app={"config": config, "config_store": store},
+        json=AsyncMock(return_value={"web_password": "***"}),
+    )
+
+    response = await handle_save_config(request)
+
+    assert response.status == 200
+    assert config.web_password == "existing"
+    assert _COOKIE_NAME not in response.cookies
+
+
+@pytest.mark.asyncio
+async def test_save_empty_password_disables_protection() -> None:
+    """An explicit empty web_password clears the password and re-issues a token."""
     config = AppConfig(web_password="existing")
     store = SimpleNamespace(save=AsyncMock())
     request = SimpleNamespace(
@@ -94,5 +111,10 @@ async def test_save_unchanged_password_does_not_reissue() -> None:
     response = await handle_save_config(request)
 
     assert response.status == 200
-    assert config.web_password == "existing"
-    assert _COOKIE_NAME not in response.cookies
+    assert config.web_password == ""
+    # The token cookie is still re-issued for consistency, but an empty
+    # password disables protection entirely (verify_token always returns False
+    # for an empty password, and the middleware skips auth when disabled).
+    cookie = response.cookies.get(_COOKIE_NAME)
+    assert cookie is not None
+    assert not verify_token("", cookie.value)

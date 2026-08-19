@@ -175,7 +175,9 @@ export function SettingsPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
   const [loginMethod, setLoginMethod] = useState<"password" | "cookie" | "qr">("password");
+  const [webAuthEnabled, setWebAuthEnabled] = useState(false);
   useEffect(() => { if (!draft && config.data) setDraft(makeDraft(config.data)); }, [config.data, draft]);
+  useEffect(() => { if (config.data) setWebAuthEnabled(Boolean(config.data.web_password)); }, [config.data?.web_password]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -195,12 +197,24 @@ export function SettingsPage() {
       };
       if (draft.password.trim()) payload.password = draft.password;
       if (draft.cookieUserId.trim() && draft.cookiePassToken.trim()) payload.cookie = `userId=${draft.cookieUserId.trim()}; passToken=${draft.cookiePassToken.trim()}`;
-      if (draft.webPassword.trim()) payload.web_password = draft.webPassword;
+      if (!webAuthEnabled) {
+        // Explicitly clear the password to disable login protection.
+        payload.web_password = "";
+      } else if (draft.webPassword.trim()) {
+        payload.web_password = draft.webPassword;
+      }
       return api.saveConfig(payload);
     },
     onSuccess: async (result) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.config });
-      setDraft((current) => current ? { ...current, password: "", cookieUserId: "", cookiePassToken: "", webPassword: "" } : current);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.config }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.speakers }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.auth }),
+      ]);
+      // Re-sync the form from the freshly persisted config so the UI reflects
+      // server-side normalization (masked password state, resolved hostname).
+      const fresh = await queryClient.fetchQuery(configQuery);
+      setDraft(makeDraft(fresh));
       if (result.restart_required) {
         showToast("配置已保存；管理端口变更需重启 MiAirX 后生效", "info");
       } else {
@@ -211,11 +225,14 @@ export function SettingsPage() {
   });
 
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => current ? { ...current, [key]: value } : current);
+  // Whether the "enable login protection" toggle differs from what's persisted.
+  const authToggleChanged = Boolean(config.data && webAuthEnabled !== Boolean(config.data.web_password));
   const hasChanges = Boolean(draft && config.data && (
     draft.password.trim() ||
     draft.cookieUserId.trim() ||
     draft.cookiePassToken.trim() ||
     draft.webPassword.trim() ||
+    authToggleChanged ||
     JSON.stringify(draft) !== JSON.stringify(makeDraft(config.data))
   ));
   // The web port cannot be rebound while serving the current request.
@@ -289,9 +306,14 @@ export function SettingsPage() {
           <div className="settings-col">
           <section className="settings-section">
             <div className="settings-section-title"><div className="settings-icon blue"><ShieldCheck size={20} /></div><div><h2>后台安全</h2><p>给管理台设置访问密码，防止局域网内他人操作你的音箱。</p></div></div>
-            <div className="form-grid">
-              <label className="field"><span>后台密码</span><input type="password" autoComplete="new-password" value={draft.webPassword} onChange={(event) => update("webPassword", event.target.value)} placeholder={config.data?.web_password ? "已设置；留空保持不变" : "留空表示不启用登录保护"} /></label>
+            <div className="toggle-grid">
+              <Toggle checked={webAuthEnabled} onChange={setWebAuthEnabled} label="启用登录保护" description="开启后访问管理台需要输入密码；关闭则移除密码。" />
             </div>
+            {webAuthEnabled && (
+              <div className="form-grid" style={{ marginTop: 16 }}>
+                <label className="field"><span>后台密码</span><input type="password" autoComplete="new-password" value={draft.webPassword} onChange={(event) => update("webPassword", event.target.value)} placeholder={config.data?.web_password ? "已设置；留空保持不变" : "输入新的后台密码"} /></label>
+              </div>
+            )}
           </section>
 
           <section className="settings-section">

@@ -378,10 +378,15 @@ async def handle_save_config(request: web.Request) -> web.Response:
         if "auto_restart" in data:
             config.auto_restart = bool(data["auto_restart"])
         password_changed = False
-        if "web_password" in data and data["web_password"] not in ("", "***"):
-            if config.web_password != data["web_password"]:
-                password_changed = True
-            config.web_password = data["web_password"]
+        if "web_password" in data:
+            new_pw = data["web_password"]
+            # "***" is the masked placeholder sent by GET /api/config and means
+            # "unchanged". An explicit empty string now clears the password
+            # (disables login protection); any other value sets a new password.
+            if new_pw != "***":
+                if config.web_password != new_pw:
+                    password_changed = True
+                config.web_password = new_pw
 
         # Save config to file
         await config_store.save(config)

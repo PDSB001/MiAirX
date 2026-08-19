@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { api } from "./api/client";
+import { queryKeys } from "./api/queries";
 import { AppShell } from "./components/AppShell";
 import { useHashPage } from "./hooks/useHashPage";
 import { ControlPage } from "./pages/ControlPage";
@@ -11,7 +12,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 
 export default function App() {
   const [page, setPage] = useHashPage();
-  const auth = useQuery({ queryKey: ["auth"], queryFn: api.authStatus, retry: false });
+  const auth = useQuery({ queryKey: queryKeys.auth, queryFn: api.authStatus, retry: false });
   const locked = auth.data?.auth_enabled && !auth.data.authenticated;
 
   useEffect(() => {

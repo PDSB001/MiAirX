@@ -7,6 +7,7 @@ export const queryKeys = {
   speakers: ["speakers"] as const,
   devices: ["devices"] as const,
   positions: ["positions"] as const,
+  auth: ["auth"] as const,
 };
 
 export const statusQuery = queryOptions({ queryKey: queryKeys.status, queryFn: api.status, refetchInterval: 15_000 });

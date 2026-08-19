@@ -141,7 +141,7 @@ function VersionPanel() {
         <ChevronDown className="details-chevron" size={18} />
       </summary>
       <div className="compatibility-content version-content">
-        {version.isLoading && <p className="version-line muted">正在检查更新…</p>}
+        {version.isFetching && <p className="version-line muted">正在检查更新…</p>}
         {version.isError && <p className="version-line muted">检查失败：{(version.error as Error).message}</p>}
         {data && (
           <div className="version-line">

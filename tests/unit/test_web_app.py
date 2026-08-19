@@ -14,6 +14,7 @@ from miairx.web.app import (
     handle_legacy_index,
     handle_save_config,
 )
+from miairx.web.auth import _COOKIE_NAME, verify_token
 
 
 @pytest.mark.asyncio
@@ -55,3 +56,43 @@ async def test_config_api_rejects_overlapping_airplay_range() -> None:
     assert response.status == 400
     assert config.airplay_port_start == 7000
     store.save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_save_new_password_reissues_token() -> None:
+    """Setting a web password must re-issue a token signed with the new password."""
+    config = AppConfig(web_password="")
+    store = SimpleNamespace(save=AsyncMock())
+    request = SimpleNamespace(
+        app={"config": config, "config_store": store},
+        json=AsyncMock(return_value={"web_password": "newpass123"}),
+    )
+
+    response = await handle_save_config(request)
+
+    assert response.status == 200
+    assert config.web_password == "newpass123"
+    # The Set-Cookie must contain a token valid under the NEW password, so the
+    # client's post-save refresh requests succeed instead of 401.
+    cookie = response.cookies.get(_COOKIE_NAME)
+    assert cookie is not None
+    assert verify_token("newpass123", cookie.value)
+    # The old (empty) password must no longer validate the new token.
+    assert not verify_token("", cookie.value)
+
+
+@pytest.mark.asyncio
+async def test_save_unchanged_password_does_not_reissue() -> None:
+    """A placeholder/empty web_password must not trigger token re-issue."""
+    config = AppConfig(web_password="existing")
+    store = SimpleNamespace(save=AsyncMock())
+    request = SimpleNamespace(
+        app={"config": config, "config_store": store},
+        json=AsyncMock(return_value={"web_password": ""}),
+    )
+
+    response = await handle_save_config(request)
+
+    assert response.status == 200
+    assert config.web_password == "existing"
+    assert _COOKIE_NAME not in response.cookies

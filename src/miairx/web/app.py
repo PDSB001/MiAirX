@@ -14,10 +14,13 @@ from miairx.config.models import AppConfig
 from miairx.config.store import ConfigStore
 from miairx.core.log_buffer import get_log_buffer
 from miairx.web.auth import (
+    _COOKIE_NAME,
+    _TOKEN_TTL_SECONDS,
     auth_middleware,
     handle_auth_login,
     handle_auth_logout,
     handle_auth_status,
+    issue_token,
 )
 from miairx.auth.qr_login import STATE_CONFIRMED
 from miairx.web.diagnostics import build_diagnostics_bundle
@@ -374,7 +377,10 @@ async def handle_save_config(request: web.Request) -> web.Response:
             config.follow_device_volume = bool(data["follow_device_volume"])
         if "auto_restart" in data:
             config.auto_restart = bool(data["auto_restart"])
+        password_changed = False
         if "web_password" in data and data["web_password"] not in ("", "***"):
+            if config.web_password != data["web_password"]:
+                password_changed = True
             config.web_password = data["web_password"]
 
         # Save config to file
@@ -386,11 +392,26 @@ async def handle_save_config(request: web.Request) -> web.Response:
         if main_app and hasattr(main_app, "reload_after_config_change"):
             restart_required = await main_app.reload_after_config_change(changed)
 
-        return web.json_response({
+        response = web.json_response({
             "success": True,
             "message": "Configuration saved successfully",
             "restart_required": restart_required,
         })
+
+        # When the management password changes, the HMAC key that validates
+        # auth tokens changes too, so the client's current token is instantly
+        # invalid. Re-issue a token signed with the new password so the
+        # post-save refresh requests succeed instead of 401.
+        if password_changed:
+            response.set_cookie(
+                _COOKIE_NAME,
+                issue_token(config.web_password),
+                max_age=_TOKEN_TTL_SECONDS,
+                httponly=True,
+                samesite="Lax",
+            )
+
+        return response
 
     except Exception as e:
         log.error(f"Failed to save config: {e}")

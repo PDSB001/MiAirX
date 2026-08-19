@@ -218,6 +218,20 @@ export function SettingsPage() {
     draft.webPassword.trim() ||
     JSON.stringify(draft) !== JSON.stringify(makeDraft(config.data))
   ));
+  // The web port cannot be rebound while serving the current request.
+  const willNeedRestart = Boolean(draft && config.data && draft.web_port !== config.data.web_port);
+  // Fields that rebuild/restart services (and may briefly interrupt playback).
+  const willInterrupt = Boolean(draft && config.data && (
+    Boolean(draft.password.trim()) ||
+    Boolean(draft.cookieUserId.trim() && draft.cookiePassToken.trim()) ||
+    draft.account.trim() !== config.data.account ||
+    draft.mi_did !== config.data.mi_did ||
+    draft.hostname.trim() !== config.data.hostname ||
+    draft.dlna_port !== config.data.dlna_port ||
+    draft.airplay_port_start !== config.data.airplay_port_start ||
+    draft.default_volume !== config.data.default_volume ||
+    draft.follow_device_volume !== config.data.follow_device_volume
+  ));
   const reload = async () => {
     const result = await config.refetch();
     if (result.data) { setDraft(makeDraft(result.data)); showToast("已恢复服务端配置"); }
@@ -302,7 +316,7 @@ export function SettingsPage() {
           </div>
 
           <VersionPanel />
-          <div className={`save-bar ${hasChanges ? "has-changes" : "is-saved"}`}><div><strong>{hasChanges ? "有未保存的更改" : "配置已是最新"}</strong><span>{hasChanges ? "保存不会自动重启，也不会打断正在播放的内容。" : "修改任意设置后，可在这里统一保存。"}</span></div><button type="submit" className="button primary large" disabled={!hasChanges || save.isPending}><Save size={18} />{save.isPending ? "正在保存" : hasChanges ? "保存全部设置" : "已保存"}</button></div>
+          <div className={`save-bar ${hasChanges ? "has-changes" : "is-saved"}`}><div><strong>{hasChanges ? "有未保存的更改" : "配置已是最新"}</strong><span>{hasChanges ? (willNeedRestart ? "管理端口变更，保存后需重启 MiAirX 才生效。" : willInterrupt ? "保存后将热重载相关服务，可能短暂中断正在播放的内容。" : "保存后自动生效，不会中断正在播放的内容。") : "修改任意设置后，可在这里统一保存。"}</span></div><button type="submit" className="button primary large" disabled={!hasChanges || save.isPending}><Save size={18} />{save.isPending ? "正在保存" : hasChanges ? "保存全部设置" : "已保存"}</button></div>
         </form>
       )}
       {qrOpen && <QrLoginModal onClose={() => setQrOpen(false)} />}

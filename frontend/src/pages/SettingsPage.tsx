@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, CheckCircle2, ChevronDown, ExternalLink, Fingerprint, KeyRound, Network, QrCode, RefreshCw, Rocket, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, ExternalLink, Fingerprint, KeyRound, Network, QrCode, RefreshCw, Rocket, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { configQuery, queryKeys } from "../api/queries";
@@ -133,26 +133,24 @@ function VersionPanel() {
   const version = useQuery({ queryKey: ["version"], queryFn: () => api.version(), retry: false });
   const data = version.data;
   return (
-    <details className="compatibility-panel version-panel">
-      <summary>
-        <span className="compatibility-symbol"><Rocket size={18} /></span>
-        <span><strong>版本检测</strong><small>检查 GitHub 上的最新发布版本</small></span>
-        {data?.update_available && <em className="update-badge">有新版本</em>}
-        <ChevronDown className="details-chevron" size={18} />
-      </summary>
-      <div className="compatibility-content version-content">
+    <section className="settings-section version-panel">
+      <div className="settings-section-title">
+        <div className="settings-icon green"><Rocket size={20} /></div>
+        <div><h2>版本检测</h2><p>检查 GitHub 上的最新发布版本</p></div>
+        <div className="version-actions">
+          {data?.update_available && <em className="update-badge">有新版本</em>}
+          <button type="button" className="button secondary small" onClick={() => void version.refetch()} disabled={version.isFetching}>
+            <RefreshCw className={version.isFetching ? "spin" : ""} size={14} />重新检查
+          </button>
+        </div>
+      </div>
+      <div className="version-content">
         {version.isFetching && <p className="version-line muted">正在检查更新…</p>}
         {version.isError && <p className="version-line muted">检查失败：{(version.error as Error).message}</p>}
         {data && (
-          <div className="version-line">
-            <span>当前版本</span>
-            <strong>v{data.current_version}</strong>
-            {data.latest_version && (
-              <>
-                <span>最新版本</span>
-                <strong>{data.latest_version}</strong>
-              </>
-            )}
+          <div className="version-rows">
+            <div className="version-stat"><span>当前版本</span><strong>v{data.current_version}</strong></div>
+            <div className="version-stat"><span>最新版本</span><strong>{data.latest_version ?? "—"}</strong></div>
           </div>
         )}
         {data?.update_available && data.url && (
@@ -162,9 +160,8 @@ function VersionPanel() {
           <p className="version-line muted">当前已是最新版本。</p>
         )}
         {data?.error && <p className="version-line muted">无法连接 GitHub，稍后可重试。</p>}
-        <button type="button" className="button secondary small" onClick={() => void version.refetch()} disabled={version.isFetching}>重新检查</button>
       </div>
-    </details>
+    </section>
   );
 }
 

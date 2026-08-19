@@ -162,7 +162,7 @@ function VersionPanel() {
           <p className="version-line muted">当前已是最新版本。</p>
         )}
         {data?.error && <p className="version-line muted">无法连接 GitHub，稍后可重试。</p>}
-        <button className="button secondary small" onClick={() => void version.refetch()} disabled={version.isFetching}>重新检查</button>
+        <button type="button" className="button secondary small" onClick={() => void version.refetch()} disabled={version.isFetching}>重新检查</button>
       </div>
     </details>
   );

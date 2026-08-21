@@ -2,13 +2,15 @@
 
 import json
 import os
+import stat
 import tempfile
 from pathlib import Path
 
 import pytest
 
+from miairx.auth.token_store import SecureTokenStore
 from miairx.config.models import AppConfig
-from miairx.config.store import ConfigStore
+from miairx.config.store import ConfigLoadError, ConfigStore
 
 
 @pytest.fixture
@@ -95,3 +97,49 @@ def test_load_with_speakers(config_store, temp_dir):
     assert "456" in loaded.speakers
     assert loaded.speakers["123"].name == "Speaker 1"
     assert loaded.speakers["456"].enabled is False
+
+
+def test_invalid_json_does_not_fall_back_or_overwrite(config_store, temp_dir):
+    """An existing corrupt config must stop startup instead of becoming defaults."""
+    config_file = Path(temp_dir) / "config.json"
+    config_file.write_text("{broken", encoding="utf-8")
+
+    with pytest.raises(ConfigLoadError, match="Invalid configuration file"):
+        config_store.load()
+
+    assert config_file.read_text(encoding="utf-8") == "{broken"
+
+
+def test_invalid_config_value_does_not_fall_back(config_store, temp_dir):
+    config_file = Path(temp_dir) / "config.json"
+    config_file.write_text('{"default_volume": 101}', encoding="utf-8")
+
+    with pytest.raises(ConfigLoadError, match="default_volume"):
+        config_store.load()
+
+
+def test_secure_token_store_roundtrip(temp_dir):
+    token_path = Path(temp_dir) / ".mi.token"
+    store = SecureTokenStore(str(token_path))
+    token = {"userId": "123", "serviceToken": "secret"}
+
+    store.save_token(token)
+
+    assert store.load_token() == token
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are Unix-only")
+def test_saved_token_is_owner_only(temp_dir):
+    token_path = Path(temp_dir) / ".mi.token"
+    SecureTokenStore(str(token_path)).save_token({"serviceToken": "secret"})
+
+    assert stat.S_IMODE(token_path.stat().st_mode) == 0o600
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are Unix-only")
+def test_saved_credentials_are_owner_only(config_store, temp_dir):
+    config_store.save_sync(AppConfig(password="secret", cookie="token"))
+
+    config_file = Path(temp_dir) / "config.json"
+    assert stat.S_IMODE(config_file.stat().st_mode) == 0o600
+    assert stat.S_IMODE(Path(temp_dir).stat().st_mode) == 0o700

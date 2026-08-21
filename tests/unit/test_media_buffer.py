@@ -103,6 +103,19 @@ async def test_large_download_switches_to_streaming_passthrough():
 
 
 @pytest.mark.asyncio
+async def test_incorrect_small_content_length_cannot_fill_memory():
+    """A lying upstream is cleared once the hard in-memory limit is crossed."""
+    buffer = MediaBuffer("http://example.com/audio", max_memory=5)
+
+    await buffer._download(
+        _FakeSession([b"1234", b"56"], headers={"Content-Length": "4"})
+    )
+
+    assert buffer.is_passthrough is True
+    assert buffer.data == bytearray()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("headers", [{}, {"Content-Length": "invalid"}])
 async def test_unknown_length_download_uses_streaming_passthrough(headers):
     """Unknown-size responses start without waiting for an arbitrary limit."""
@@ -195,6 +208,77 @@ async def test_small_media_streams_before_full_download_completes():
         slow_content.release_final_chunk.set()
         await proxy.close()
         await asyncio.gather(download_task, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("range_header", "expected_range", "expected_body"),
+    [
+        ("bytes=5-", "bytes 5-9/10", b"56789"),
+        ("bytes=-4", "bytes 6-9/10", b"6789"),
+    ],
+)
+async def test_buffered_range_response_has_real_length(
+    range_header, expected_range, expected_body
+):
+    buffer = MediaBuffer("http://example.com/audio")
+    buffer.data = bytearray(b"0123456789")
+    buffer.content_length = 10
+    buffer.content_type = "audio/mpeg"
+    buffer.is_complete = True
+
+    server = DlnaHttpServer("127.0.0.1", 8200, AppConfig())
+    server._media_buffers["buffer"] = buffer
+    server._proxy_tokens["token"] = ("buffer", "uuid:test")
+    proxy_app = web.Application()
+    proxy_app.router.add_route("*", "/media/{token}", server._handle_media_request)
+    proxy = TestClient(TestServer(proxy_app, host="127.0.0.1"))
+    await proxy.start_server()
+
+    try:
+        response = await proxy.get("/media/token", headers={"Range": range_header})
+        assert response.status == 206
+        assert response.headers["Content-Range"] == expected_range
+        assert int(response.headers["Content-Length"]) == len(expected_body)
+        assert await response.read() == expected_body
+    finally:
+        await proxy.close()
+
+
+@pytest.mark.asyncio
+async def test_unsatisfiable_range_returns_total_size():
+    buffer = MediaBuffer("http://example.com/audio")
+    buffer.data = bytearray(b"0123456789")
+    buffer.content_length = 10
+    buffer.is_complete = True
+    server = DlnaHttpServer("127.0.0.1", 8200, AppConfig())
+    server._media_buffers["buffer"] = buffer
+    server._proxy_tokens["token"] = ("buffer", "uuid:test")
+    proxy_app = web.Application()
+    proxy_app.router.add_route("*", "/media/{token}", server._handle_media_request)
+    proxy = TestClient(TestServer(proxy_app, host="127.0.0.1"))
+    await proxy.start_server()
+
+    try:
+        response = await proxy.get("/media/token", headers={"Range": "bytes=10-"})
+        assert response.status == 416
+        assert response.headers["Content-Range"] == "bytes */10"
+    finally:
+        await proxy.close()
+
+
+@pytest.mark.asyncio
+async def test_large_passthrough_seek_does_not_load_media_into_memory():
+    server = DlnaHttpServer("127.0.0.1", 8200, AppConfig())
+    buffer = MediaBuffer("http://example.com/large-audio")
+    buffer.is_passthrough = True
+    server._url_to_buffer[buffer.url] = "buffer"
+    server._media_buffers["buffer"] = buffer
+
+    seek_url = await server.create_seek_url(buffer.url, 30, 300, "uuid:test")
+
+    assert seek_url is None
+    assert buffer.data == bytearray()
 
 
 @pytest.mark.asyncio

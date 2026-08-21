@@ -16,14 +16,81 @@ import hashlib
 import hmac
 import logging
 import time
+from collections import deque
+from dataclasses import dataclass, field
+from functools import lru_cache
 
 from aiohttp import web
 
 log = logging.getLogger(__name__)
 
 _COOKIE_NAME = "miairx_token"
-_TOKEN_TTL_SECONDS = 7 * 24 * 3600  # 7 days
+_TOKEN_TTL_SECONDS = 24 * 3600  # 24 hours
 _SALT = b"miairx-web-session-v1"
+_LOGIN_LIMITER_KEY = "login_rate_limiter"
+
+
+@dataclass
+class LoginRateLimiter:
+    """Small in-memory limiter for repeated password failures by peer address."""
+
+    max_failures: int = 5
+    window_seconds: int = 5 * 60
+    max_peers: int = 1024
+    failures: dict[str, deque[float]] = field(default_factory=dict)
+
+    def _prune(self, peer: str, now: float) -> deque[float]:
+        attempts = self.failures.setdefault(peer, deque())
+        cutoff = now - self.window_seconds
+        while attempts and attempts[0] <= cutoff:
+            attempts.popleft()
+        if not attempts:
+            self.failures.pop(peer, None)
+            attempts = deque()
+        return attempts
+
+    def retry_after(self, peer: str, now: float | None = None) -> int:
+        now = time.monotonic() if now is None else now
+        attempts = self._prune(peer, now)
+        if len(attempts) < self.max_failures:
+            return 0
+        return max(1, int(self.window_seconds - (now - attempts[0])))
+
+    def record_failure(self, peer: str, now: float | None = None) -> int:
+        now = time.monotonic() if now is None else now
+        attempts = self._prune(peer, now)
+        attempts.append(now)
+        self.failures[peer] = attempts
+
+        # Keep unauthenticated traffic from growing the peer map without bound.
+        if len(self.failures) > self.max_peers:
+            oldest_peer = min(
+                self.failures,
+                key=lambda item: self.failures[item][-1],
+            )
+            self.failures.pop(oldest_peer, None)
+        return self.retry_after(peer, now)
+
+    def reset(self, peer: str) -> None:
+        self.failures.pop(peer, None)
+
+
+def _request_peer(request: web.Request) -> str:
+    """Return a stable direct peer identity without trusting proxy headers."""
+    remote = getattr(request, "remote", None)
+    if remote:
+        return str(remote)
+    transport = getattr(request, "transport", None)
+    peername = transport.get_extra_info("peername") if transport else None
+    return str(peername[0]) if peername else "unknown"
+
+
+def _get_login_limiter(request: web.Request) -> LoginRateLimiter:
+    limiter = request.app.get(_LOGIN_LIMITER_KEY)
+    if limiter is None:
+        limiter = LoginRateLimiter()
+        request.app[_LOGIN_LIMITER_KEY] = limiter
+    return limiter
 
 # Paths that never require a token so the login screen can bootstrap.
 _PUBLIC_PATHS = {
@@ -35,6 +102,7 @@ _PUBLIC_PATHS = {
 }
 
 
+@lru_cache(maxsize=8)
 def _derive_key(password: str) -> bytes:
     """Derive an HMAC key from the configured web password."""
     return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), _SALT, 100_000)
@@ -125,18 +193,38 @@ async def handle_auth_login(request: web.Request) -> web.Response:
             "error": "后台未启用登录保护",
         }, status=400)
 
+    peer = _request_peer(request)
+    limiter = _get_login_limiter(request)
+    retry_after = limiter.retry_after(peer)
+    if retry_after:
+        return web.json_response(
+            {"success": False, "error": "登录尝试过多，请稍后重试"},
+            status=429,
+            headers={"Retry-After": str(retry_after)},
+        )
+
     try:
         data = await request.json()
     except Exception:
         data = {}
+    if not isinstance(data, dict):
+        data = {}
 
     provided = str(data.get("password", ""))
     if not hmac.compare_digest(provided.encode("utf-8"), password.encode("utf-8")):
+        retry_after = limiter.record_failure(peer)
+        if retry_after:
+            return web.json_response(
+                {"success": False, "error": "登录尝试过多，请稍后重试"},
+                status=429,
+                headers={"Retry-After": str(retry_after)},
+            )
         return web.json_response({
             "success": False,
             "error": "密码错误",
         }, status=401)
 
+    limiter.reset(peer)
     token = issue_token(password)
     response = web.json_response({"success": True})
     response.set_cookie(

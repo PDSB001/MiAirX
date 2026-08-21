@@ -13,8 +13,11 @@ from miairx.web.app import (
     handle_index,
     handle_legacy_index,
     handle_save_config,
+    handle_seek,
+    handle_status,
+    handle_volume,
 )
-from miairx.web.auth import _COOKIE_NAME, verify_token
+from miairx.web.auth import _COOKIE_NAME
 
 
 @pytest.mark.asyncio
@@ -43,6 +46,21 @@ async def test_config_api_exposes_airplay_port_start() -> None:
 
 
 @pytest.mark.asyncio
+async def test_status_uses_effective_hostname_when_config_is_blank() -> None:
+    config = AppConfig(hostname="")
+    app = SimpleNamespace(
+        resolve_hostname=lambda: "192.168.1.23",
+        _is_running=True,
+    )
+    request = SimpleNamespace(app={"config": config, "app": app})
+
+    response = await handle_status(request)
+
+    assert config.hostname == ""
+    assert json.loads(response.text)["hostname"] == "192.168.1.23"
+
+
+@pytest.mark.asyncio
 async def test_config_api_rejects_overlapping_airplay_range() -> None:
     config = AppConfig(dlna_port=8200, web_port=8300, airplay_port_start=7000)
     store = SimpleNamespace(save=AsyncMock())
@@ -59,8 +77,8 @@ async def test_config_api_rejects_overlapping_airplay_range() -> None:
 
 
 @pytest.mark.asyncio
-async def test_save_new_password_reissues_token() -> None:
-    """Setting a web password must re-issue a token signed with the new password."""
+async def test_save_new_password_expires_current_session() -> None:
+    """Changing the management password invalidates the current browser too."""
     config = AppConfig(web_password="")
     store = SimpleNamespace(save=AsyncMock())
     request = SimpleNamespace(
@@ -72,13 +90,11 @@ async def test_save_new_password_reissues_token() -> None:
 
     assert response.status == 200
     assert config.web_password == "newpass123"
-    # The Set-Cookie must contain a token valid under the NEW password, so the
-    # client's post-save refresh requests succeed instead of 401.
     cookie = response.cookies.get(_COOKIE_NAME)
     assert cookie is not None
-    assert verify_token("newpass123", cookie.value)
-    # The old (empty) password must no longer validate the new token.
-    assert not verify_token("", cookie.value)
+    assert cookie.value == ""
+    assert cookie["max-age"] == "0"
+    assert json.loads(response.text)["reauth_required"] is True
 
 
 @pytest.mark.asyncio
@@ -100,7 +116,7 @@ async def test_save_placeholder_password_does_not_change() -> None:
 
 @pytest.mark.asyncio
 async def test_save_empty_password_disables_protection() -> None:
-    """An explicit empty web_password clears the password and re-issues a token."""
+    """Disabling protection clears the cookie without requiring another login."""
     config = AppConfig(web_password="existing")
     store = SimpleNamespace(save=AsyncMock())
     request = SimpleNamespace(
@@ -112,9 +128,75 @@ async def test_save_empty_password_disables_protection() -> None:
 
     assert response.status == 200
     assert config.web_password == ""
-    # The token cookie is still re-issued for consistency, but an empty
-    # password disables protection entirely (verify_token always returns False
-    # for an empty password, and the middleware skips auth when disabled).
     cookie = response.cookies.get(_COOKIE_NAME)
     assert cookie is not None
-    assert not verify_token("", cookie.value)
+    assert cookie.value == ""
+    assert cookie["max-age"] == "0"
+    assert json.loads(response.text)["reauth_required"] is False
+
+
+@pytest.mark.asyncio
+async def test_invalid_config_update_is_transactional() -> None:
+    config = AppConfig(account="old", default_volume=30)
+    store = SimpleNamespace(save=AsyncMock())
+    request = SimpleNamespace(
+        app={"config": config, "config_store": store},
+        json=AsyncMock(return_value={"account": "new", "default_volume": 101}),
+    )
+
+    response = await handle_save_config(request)
+
+    assert response.status == 400
+    assert config.account == "old"
+    assert config.default_volume == 30
+    store.save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_config_boolean_coercion_is_owned_by_pydantic() -> None:
+    config = AppConfig(verbose=True)
+    store = SimpleNamespace(save=AsyncMock())
+    request = SimpleNamespace(
+        app={"config": config, "config_store": store},
+        json=AsyncMock(return_value={"verbose": "false"}),
+    )
+
+    response = await handle_save_config(request)
+
+    assert response.status == 200
+    assert config.verbose is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("volume", [-1, 0, 101, "loud"])
+async def test_volume_api_rejects_out_of_range_values(volume) -> None:
+    request = SimpleNamespace(json=AsyncMock(return_value={"did": "123", "volume": volume}))
+
+    response = await handle_volume(request)
+
+    assert response.status == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("position", [-1, float("inf"), 86401])
+async def test_seek_api_rejects_out_of_range_values(position) -> None:
+    request = SimpleNamespace(json=AsyncMock(return_value={"did": "123", "position": position}))
+
+    response = await handle_seek(request)
+
+    assert response.status == 400
+
+
+@pytest.mark.asyncio
+async def test_seek_api_rejects_position_after_track_end() -> None:
+    renderer = SimpleNamespace(_track_duration=60.0, seek=AsyncMock())
+    app = SimpleNamespace(_did_to_udn={"123": "uuid:test"}, renderers={"uuid:test": renderer})
+    request = SimpleNamespace(
+        app={"app": app},
+        json=AsyncMock(return_value={"did": "123", "position": 61}),
+    )
+
+    response = await handle_seek(request)
+
+    assert response.status == 400
+    renderer.seek.assert_not_awaited()

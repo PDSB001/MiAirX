@@ -211,6 +211,21 @@ export function SettingsPage() {
       return api.saveConfig(payload);
     },
     onSuccess: async (result) => {
+      if (result.reauth_required) {
+        // The server has expired this cookie and all other sessions signed
+        // with the previous password. Drop protected cached data and move the
+        // shell straight to the login page without making doomed API calls.
+        queryClient.removeQueries({ queryKey: queryKeys.config });
+        queryClient.removeQueries({ queryKey: queryKeys.speakers });
+        queryClient.removeQueries({ queryKey: queryKeys.devices });
+        queryClient.removeQueries({ queryKey: queryKeys.positions });
+        queryClient.setQueryData(queryKeys.auth, {
+          auth_enabled: true,
+          authenticated: false,
+        });
+        showToast("后台密码已更新，请使用新密码重新登录", "info");
+        return;
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.config }),
         queryClient.invalidateQueries({ queryKey: queryKeys.speakers }),

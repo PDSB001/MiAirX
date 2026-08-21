@@ -22,7 +22,6 @@ from miairx.const import (
     TRANSPORT_STATE_TRANSITIONING,
 )
 from miairx.core.lifecycle import lifecycle
-from miairx.media.proxy import MediaProxy
 from miairx.protocols.airplay.speaker_airplay import SpeakerAirplay
 from miairx.protocols.dlna.renderer import DlnaRenderer
 from miairx.protocols.dlna.server import DlnaHttpServer
@@ -139,7 +138,6 @@ class Application:
         # DLNA components
         self.ssdp: Optional[SsdpServer] = None
         self.dlna_server: Optional[DlnaHttpServer] = None
-        self.media_proxy: Optional[MediaProxy] = None
         self._resume_tasks: dict = {}
         self.renderers: dict[str, DlnaRenderer] = {}  # udn -> renderer
         self._did_to_udn: dict[str, str] = {}  # did -> udn
@@ -268,9 +266,6 @@ class Application:
             self.config.dlna_port,
             self.config,
         )
-        
-        # Create media proxy
-        self.media_proxy = MediaProxy(self.resolve_hostname(), self.config.dlna_port)
         
         # Create renderers for each enabled speaker
         for speaker in self.config.get_enabled_speakers():
@@ -415,9 +410,6 @@ class Application:
         if self.dlna_server:
             await self.dlna_server.stop()
         
-        if self.media_proxy:
-            await self.media_proxy.cleanup()
-
     async def _stop_airplay_server(self) -> None:
         """Stop AirPlay server components (parallel)."""
         async def _stop_one(did: str, airplay) -> None:

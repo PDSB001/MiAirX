@@ -2,12 +2,16 @@
 
 import json
 import logging
-import os
 from pathlib import Path
 
 from miairx.config.models import AppConfig
+from miairx.config.secure_io import atomic_write_private_json
 
 log = logging.getLogger(__name__)
+
+
+class ConfigLoadError(RuntimeError):
+    """Raised when an existing configuration cannot be parsed or validated."""
 
 
 class ConfigStore:
@@ -47,27 +51,17 @@ class ConfigStore:
             valid_fields = set(AppConfig.model_fields.keys())
             filtered_data = {k: v for k, v in data.items() if k in valid_fields}
             
-            return AppConfig(**filtered_data)
+            return AppConfig.model_validate(filtered_data)
         except Exception as e:
             log.error(f"Failed to load config: {e}")
-            return AppConfig(conf_path=str(self.conf_path))
+            raise ConfigLoadError(
+                f"Invalid configuration file {self.config_file}: {e}"
+            ) from e
 
     async def save(self, config: AppConfig) -> None:
         """Save configuration to file atomically."""
         try:
-            # Ensure directory exists
-            self.conf_path.mkdir(parents=True, exist_ok=True)
-            
-            # Prepare data for serialization
-            data = config.model_dump()
-            
-            # Write to temporary file first
-            tmp_path = self.config_file.with_suffix(".tmp")
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            
-            # Atomic rename (os.replace is atomic on most systems)
-            os.replace(tmp_path, self.config_file)
+            atomic_write_private_json(self.config_file, config.model_dump())
             
             log.info(f"Configuration saved to {self.config_file}")
         except Exception as e:
@@ -81,19 +75,7 @@ class ConfigStore:
     def save_sync(self, config: AppConfig) -> None:
         """Synchronous version of save."""
         try:
-            # Ensure directory exists
-            self.conf_path.mkdir(parents=True, exist_ok=True)
-            
-            # Prepare data for serialization
-            data = config.model_dump()
-            
-            # Write to temporary file first
-            tmp_path = self.config_file.with_suffix(".tmp")
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            
-            # Atomic rename
-            os.replace(tmp_path, self.config_file)
+            atomic_write_private_json(self.config_file, config.model_dump())
             
             log.info(f"Configuration saved to {self.config_file}")
         except Exception as e:

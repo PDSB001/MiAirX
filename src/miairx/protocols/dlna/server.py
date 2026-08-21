@@ -724,51 +724,6 @@ class DlnaHttpServer:
                 return response
             return web.Response(status=502, text="Upstream media request failed")
 
-    def _handle_range_request(
-        self,
-        request: web.Request,
-        data_view: memoryview,
-        content_type: str,
-        range_header: str,
-    ) -> web.Response:
-        """Handle Range request (zero-copy via memoryview)."""
-        try:
-            total_size = len(data_view)
-
-            # Parse Range header
-            range_spec = range_header.replace("bytes=", "").strip()
-            start_str, end_str = range_spec.split("-")
-
-            start = int(start_str) if start_str else 0
-            end = int(end_str) if end_str else total_size - 1
-
-            # Clamp to available data
-            end = min(end, total_size - 1)
-
-            if start > end or start >= total_size:
-                return web.Response(status=416, text="Range not satisfiable")
-
-            # memoryview slice is zero-copy — just a view, no allocation
-            chunk = data_view[start:end + 1]
-            content_length = end - start + 1
-
-            headers = {
-                "Content-Type": content_type,
-                "Content-Length": str(content_length),
-                "Content-Range": f"bytes {start}-{end}/{total_size}",
-                "Accept-Ranges": "bytes",
-            }
-
-            return web.Response(
-                body=chunk,
-                status=206,
-                headers=headers,
-            )
-
-        except Exception as e:
-            log.error(f"Range request error: {e}")
-            return web.Response(status=400, text="Invalid range")
-
     async def _handle_request(self, request: web.Request) -> web.Response:
         """Handle generic requests."""
         return web.Response(status=404, text="Not found")

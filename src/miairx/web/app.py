@@ -8,27 +8,43 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from aiohttp import web
+from pydantic import BaseModel, Field, ValidationError
 
 from miairx import __version__
+from miairx.auth.qr_login import STATE_CONFIRMED
 from miairx.config.models import AppConfig
 from miairx.config.store import ConfigStore
 from miairx.core.log_buffer import get_log_buffer
 from miairx.web.auth import (
     _COOKIE_NAME,
-    _TOKEN_TTL_SECONDS,
+    _LOGIN_LIMITER_KEY,
+    LoginRateLimiter,
     auth_middleware,
     handle_auth_login,
     handle_auth_logout,
     handle_auth_status,
-    issue_token,
 )
-from miairx.auth.qr_login import STATE_CONFIRMED
 from miairx.web.diagnostics import build_diagnostics_bundle
 
 if TYPE_CHECKING:
     from miairx.app import Application
 
 log = logging.getLogger(__name__)
+
+
+class VolumeRequest(BaseModel):
+    """Validated volume-control payload."""
+
+    did: str = Field(min_length=1, max_length=128)
+    volume: int = Field(ge=1, le=100)
+
+
+class SeekRequest(BaseModel):
+    """Validated seek-control payload."""
+
+    did: str = Field(min_length=1, max_length=128)
+    position: float = Field(ge=0, le=24 * 60 * 60, allow_inf_nan=False)
+
 
 # Static files directory
 STATIC_DIR = Path(__file__).parent / "static"
@@ -51,6 +67,7 @@ def create_web_app(config: "AppConfig", app: "Application", config_store: Config
     web_app["config"] = config
     web_app["app"] = app
     web_app["config_store"] = config_store or ConfigStore(config.conf_path)
+    web_app[_LOGIN_LIMITER_KEY] = LoginRateLimiter()
     
     # Setup routes
     web_app.router.add_get("/", handle_index)
@@ -107,7 +124,7 @@ async def handle_status(request: web.Request) -> web.Response:
     
     status = {
         "version": __version__,
-        "hostname": config.hostname,
+        "hostname": app.resolve_hostname(),
         "dlna_port": config.dlna_port,
         "web_port": config.web_port,
         "airplay_port_start": config.airplay_port_start,
@@ -281,115 +298,60 @@ async def handle_save_config(request: web.Request) -> web.Response:
     """Handle save configuration request."""
     try:
         data = await request.json()
+        if not isinstance(data, dict):
+            raise ValueError("Configuration payload must be a JSON object")
+
         config = request.app["config"]
         config_store = request.app["config_store"]
         main_app = request.app.get("app")
 
-        # Validate the complete port layout before mutating the live config.
-        # AirPlay consumes two consecutive TCP ports for every configured DID.
-        candidate = config.model_copy(
-            update={
-                "dlna_port": int(data.get("dlna_port", config.dlna_port)),
-                "web_port": int(data.get("web_port", config.web_port)),
-                "airplay_port_start": int(
-                    data.get("airplay_port_start", config.airplay_port_start)
-                ),
+        allowed_fields = {
+            "account", "password", "mi_did", "cookie", "hostname",
+            "dlna_port", "web_port", "airplay_port_start", "verbose",
+            "auto_resume_on_interrupt", "resume_delay_seconds",
+            "default_volume", "follow_device_volume", "auto_restart",
+            "web_password",
+        }
+        unknown_fields = set(data) - allowed_fields
+        if unknown_fields:
+            raise ValueError(
+                "Unknown configuration fields: " + ", ".join(sorted(unknown_fields))
+            )
+
+        # Masked values returned by GET /api/config mean "leave unchanged".
+        updates = dict(data)
+        for field in ("password", "cookie", "web_password"):
+            if updates.get(field) == "***":
+                updates.pop(field)
+
+        candidate_data = config.model_dump()
+        candidate_data.update(updates)
+
+        # Preserve per-speaker metadata for DIDs that remain configured and
+        # create clean entries only for newly added devices.
+        if "mi_did" in updates and updates["mi_did"] != config.mi_did:
+            dids = [did.strip() for did in str(updates["mi_did"]).split(",") if did.strip()]
+            candidate_data["speakers"] = {
+                did: config.speakers.get(did, {"did": did}) for did in dids
             }
-        )
-        candidate_dids = str(data.get("mi_did", config.mi_did))
-        speaker_count = len(
-            [did for did in candidate_dids.split(",") if did.strip()]
-        )
-        for speaker_index in range(max(1, speaker_count)):
-            candidate.get_airplay_ports(speaker_index)
 
-        # Track which fields actually change so we can hot-reload only the
-        # affected components after persisting.
-        int_fields = {
-            "dlna_port", "web_port", "airplay_port_start",
-            "resume_delay_seconds", "default_volume",
+        # AppConfig is the single source of truth for coercion, ranges and
+        # cross-field port-layout constraints. The live object is untouched
+        # until the complete candidate has validated and persisted.
+        candidate = AppConfig.model_validate(candidate_data)
+        changed = {
+            field
+            for field in allowed_fields
+            if getattr(config, field) != getattr(candidate, field)
         }
-        bool_fields = {
-            "verbose", "auto_resume_on_interrupt",
-            "follow_device_volume", "auto_restart",
-        }
-        changed: set[str] = set()
-        for field in (
-            "account", "mi_did", "cookie", "hostname", "dlna_port",
-            "web_port", "airplay_port_start", "verbose",
-            "auto_resume_on_interrupt",
-            "resume_delay_seconds", "default_volume", "follow_device_volume",
-            "auto_restart",
-        ):
-            if field in data:
-                old = getattr(config, field)
-                new = data[field]
-                if field in int_fields:
-                    new = int(new)
-                elif field in bool_fields:
-                    new = bool(new)
-                # String fields (account/mi_did/cookie/hostname) are compared
-                # as-is so an unchanged value is not flagged as modified.
-                if old != new:
-                    changed.add(field)
+        password_changed = "web_password" in changed
 
-        # Sensitive fields are handled separately below.
-        if "password" in data and data["password"] not in ("", "***"):
-            if config.password != data["password"]:
-                changed.add("password")
+        await config_store.save(candidate)
 
-        # Update config fields
-        if "account" in data:
-            config.account = data["account"]
-        if "password" in data and data["password"] != "***":
-            config.password = data["password"]
-        if "mi_did" in data:
-            config.mi_did = data["mi_did"]
-            # Rebuild speaker config from new mi_did
-            config.speakers = {}
-            for did in config.get_did_list():
-                config.get_speaker(did)
-            # Try to update speaker info from cloud
-            try:
-                if main_app and getattr(main_app, "auth", None):
-                    await main_app.auth.update_speakers_info()
-            except Exception:
-                log.warning("Failed to refresh speaker info after mi_did change")
-        if "cookie" in data and data["cookie"] != "***":
-            config.cookie = data["cookie"]
-        if "hostname" in data:
-            config.hostname = data["hostname"]
-        if "dlna_port" in data:
-            config.dlna_port = int(data["dlna_port"])
-        if "web_port" in data:
-            config.web_port = int(data["web_port"])
-        if "airplay_port_start" in data:
-            config.airplay_port_start = int(data["airplay_port_start"])
-        if "verbose" in data:
-            config.verbose = bool(data["verbose"])
-        if "auto_resume_on_interrupt" in data:
-            config.auto_resume_on_interrupt = bool(data["auto_resume_on_interrupt"])
-        if "resume_delay_seconds" in data:
-            config.resume_delay_seconds = int(data["resume_delay_seconds"])
-        if "default_volume" in data:
-            config.default_volume = int(data["default_volume"])
-        if "follow_device_volume" in data:
-            config.follow_device_volume = bool(data["follow_device_volume"])
-        if "auto_restart" in data:
-            config.auto_restart = bool(data["auto_restart"])
-        password_changed = False
-        if "web_password" in data:
-            new_pw = data["web_password"]
-            # "***" is the masked placeholder sent by GET /api/config and means
-            # "unchanged". An explicit empty string now clears the password
-            # (disables login protection); any other value sets a new password.
-            if new_pw != "***":
-                if config.web_password != new_pw:
-                    password_changed = True
-                config.web_password = new_pw
-
-        # Save config to file
-        await config_store.save(config)
+        # Application components retain a reference to the original config
+        # object, so replace its validated state only after persistence works.
+        config.__dict__.update(candidate.__dict__)
+        config.__pydantic_fields_set__ = candidate.__pydantic_fields_set__.copy()
 
         # Hot-reload the affected service components so the change takes
         # effect without a manual restart.
@@ -401,26 +363,23 @@ async def handle_save_config(request: web.Request) -> web.Response:
             "success": True,
             "message": "Configuration saved successfully",
             "restart_required": restart_required,
+            "reauth_required": password_changed and bool(config.web_password),
         })
 
-        # When the management password changes, the HMAC key that validates
-        # auth tokens changes too, so the client's current token is instantly
-        # invalid. Re-issue a token signed with the new password so the
-        # post-save refresh requests succeed instead of 401.
+        # A management-password change invalidates every existing signed
+        # session. Explicitly expire the current browser's cookie as well;
+        # clients must authenticate again with the new password.
         if password_changed:
-            response.set_cookie(
-                _COOKIE_NAME,
-                issue_token(config.web_password),
-                max_age=_TOKEN_TTL_SECONDS,
-                httponly=True,
-                samesite="Lax",
-            )
+            response.del_cookie(_COOKIE_NAME)
 
         return response
 
-    except Exception as e:
+    except (ValidationError, TypeError, ValueError) as e:
         log.error(f"Failed to save config: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=400)
+    except Exception as e:
+        log.error(f"Failed to save config: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
 
 
 async def handle_speakers(request: web.Request) -> web.Response:
@@ -553,15 +512,8 @@ async def handle_stop(request: web.Request) -> web.Response:
 async def handle_volume(request: web.Request) -> web.Response:
     """Handle volume request."""
     try:
-        data = await request.json()
-        did = data.get("did")
-        volume = data.get("volume")
-        
-        if not did or volume is None:
-            return web.json_response(
-                {"success": False, "error": "Missing did or volume"},
-                status=400,
-            )
+        command = VolumeRequest.model_validate(await request.json())
+        did = command.did
         
         app = request.app["app"]
         controller = app.speaker_manager.get_controller_by_did(did)
@@ -572,8 +524,13 @@ async def handle_volume(request: web.Request) -> web.Response:
                 status=404,
             )
         
-        result = await controller.set_volume(int(volume))
+        result = await controller.set_volume(command.volume)
         return web.json_response({"success": result})
+    except ValidationError as e:
+        return web.json_response(
+            {"success": False, "error": "Invalid volume request", "details": e.errors()},
+            status=400,
+        )
     except Exception as e:
         log.error(f"Volume error: {e}")
         return web.json_response(
@@ -604,12 +561,9 @@ async def handle_get_positions(request: web.Request) -> web.Response:
 async def handle_seek(request: web.Request) -> web.Response:
     """Seek to position for a renderer."""
     try:
-        data = await request.json()
-        did = data.get("did", "")
-        position = data.get("position", 0)
-
-        if not did:
-            return web.json_response({"error": "Missing did"}, status=400)
+        command = SeekRequest.model_validate(await request.json())
+        did = command.did
+        position = command.position
 
         app = request.app["app"]
         udn = app._did_to_udn.get(did)
@@ -617,6 +571,11 @@ async def handle_seek(request: web.Request) -> web.Response:
             return web.json_response({"error": "Renderer not found"}, status=404)
 
         renderer = app.renderers[udn]
+        if renderer._track_duration > 0 and position > renderer._track_duration:
+            return web.json_response(
+                {"success": False, "error": "Seek position exceeds track duration"},
+                status=400,
+            )
 
         # Format position in seconds to HH:MM:SS for DLNA REL_TIME
         hours = int(position // 3600)
@@ -624,8 +583,13 @@ async def handle_seek(request: web.Request) -> web.Response:
         seconds = int(position % 60)
         target = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-        await renderer.seek("REL_TIME", target)
-        return web.json_response({"success": True, "position": position})
+        success = await renderer.seek("REL_TIME", target)
+        return web.json_response({"success": success, "position": position})
+    except ValidationError as e:
+        return web.json_response(
+            {"success": False, "error": "Invalid seek request", "details": e.errors()},
+            status=400,
+        )
     except Exception as e:
         log.error(f"Seek error: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=500)

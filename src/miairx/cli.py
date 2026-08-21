@@ -90,47 +90,26 @@ def load_config(args: argparse.Namespace) -> AppConfig:
     store = ConfigStore(conf_path=args.config)
     config = store.load()
 
-    # Environment variable overrides (useful for Docker)
-    if not args.account:
-        args.account = os.environ.get("MI_USER", "")
-    if not args.password:
-        args.password = os.environ.get("MI_PASS", "")
-    if not args.did:
-        args.did = os.environ.get("MI_DID", "")
-    if not args.hostname:
-        args.hostname = os.environ.get("MIAIR_HOSTNAME", "")
-    if not args.dlna_port:
-        port = os.environ.get("MIAIR_DLNA_PORT", "")
-        if port:
-            args.dlna_port = int(port)
-    if not args.web_port:
-        port = os.environ.get("MIAIR_WEB_PORT", "")
-        if port:
-            args.web_port = int(port)
-    if not args.airplay_port_start:
-        port = os.environ.get("MIAIR_AIRPLAY_PORT_START", "")
-        if port:
-            args.airplay_port_start = int(port)
-
-    # Override with command line arguments
-    if args.account:
-        config.account = args.account
-    if args.password:
-        config.password = args.password
-    if args.did:
-        config.mi_did = args.did
-    if args.hostname:
-        config.hostname = args.hostname
-    if args.dlna_port:
-        config.dlna_port = args.dlna_port
-    if args.web_port:
-        config.web_port = args.web_port
-    if args.airplay_port_start:
-        config.airplay_port_start = args.airplay_port_start
+    # Collect all overrides and validate the resulting configuration once.
+    # This keeps CLI and Docker environment values under the same Pydantic
+    # range and cross-field constraints as config.json and the Web API.
+    overrides = {
+        "account": args.account or os.environ.get("MI_USER", ""),
+        "password": args.password or os.environ.get("MI_PASS", ""),
+        "mi_did": args.did or os.environ.get("MI_DID", ""),
+        "hostname": args.hostname or os.environ.get("MIAIR_HOSTNAME", ""),
+        "dlna_port": args.dlna_port or os.environ.get("MIAIR_DLNA_PORT", ""),
+        "web_port": args.web_port or os.environ.get("MIAIR_WEB_PORT", ""),
+        "airplay_port_start": (
+            args.airplay_port_start or os.environ.get("MIAIR_AIRPLAY_PORT_START", "")
+        ),
+        "web_password": os.environ.get("MIAIR_WEB_PASSWORD", ""),
+    }
+    merged = config.model_dump()
+    merged.update({key: value for key, value in overrides.items() if value != ""})
     if args.verbose:
-        config.verbose = True
-
-    return config
+        merged["verbose"] = True
+    return AppConfig.model_validate(merged)
 
 
 async def async_main() -> None:

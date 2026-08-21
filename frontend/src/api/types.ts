@@ -93,4 +93,5 @@ export interface ActionResponse {
   error?: string;
   message?: string;
   restart_required?: boolean;
+  reauth_required?: boolean;
 }

@@ -158,16 +158,20 @@ class TestAppConfig:
 
     def test_airplay_ports_reject_overlap_with_http_services(self):
         """A bad custom range must fail before the server binds sockets."""
-        config = AppConfig(dlna_port=8200, web_port=8300, airplay_port_start=8199)
-
         with pytest.raises(ValueError, match="overlap"):
-            config.get_airplay_ports(0)
+            AppConfig(dlna_port=8200, web_port=8300, airplay_port_start=8199)
 
     def test_airplay_ports_reject_range_overflow(self):
-        config = AppConfig(airplay_port_start=65535)
+        with pytest.raises(ValueError, match="less than or equal to 65534"):
+            AppConfig(airplay_port_start=65535)
 
-        with pytest.raises(ValueError, match="exceeds"):
-            config.get_airplay_ports(0)
+    def test_invalid_assignment_does_not_corrupt_live_config(self):
+        config = AppConfig(dlna_port=8200, web_port=8300)
+
+        with pytest.raises(ValueError, match="different"):
+            config.dlna_port = 8300
+
+        assert config.dlna_port == 8200
 
     def test_get_did_list(self):
         """Test DID list parsing."""

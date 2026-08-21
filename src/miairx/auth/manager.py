@@ -9,6 +9,7 @@ from miservice import MiAccount, MiIOService, MiNAService
 
 from miairx.auth.cookie import mask_cookie_value, parse_cookie_string, validate_cookie_data
 from miairx.auth.errors import CaptchaRequiredError, LoginError, TokenExpiredError
+from miairx.auth.token_store import SecureTokenStore
 from miairx.config.models import AppConfig
 from miairx.const import SPEAKER_HARDWARE_PATTERNS
 
@@ -38,7 +39,7 @@ class AuthManager:
         
         os.makedirs(self.config.conf_path, exist_ok=True)
 
-        token_store = self.config.mi_token_home
+        token_store = SecureTokenStore(self.config.mi_token_home)
 
         # Parse cookie if provided
         token_data = {}

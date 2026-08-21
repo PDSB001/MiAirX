@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 class SpeakerConfig(BaseModel):
     """Configuration for a single Xiaomi speaker."""
+
+    model_config = ConfigDict(validate_assignment=True)
     
     did: str = ""
     device_id: str = ""
@@ -79,50 +81,59 @@ class SpeakerConfig(BaseModel):
 
 class AppConfig(BaseModel):
     """Main application configuration."""
+
+    model_config = ConfigDict(validate_assignment=True)
     
-    account: str = ""
-    password: str = ""
-    mi_did: str = ""
-    cookie: str = ""
-    hostname: str = ""
-    dlna_port: int = 8200
-    web_port: int = 8300
-    airplay_port_start: int = 7000
+    account: str = Field(default="", max_length=256)
+    password: str = Field(default="", max_length=1024)
+    mi_did: str = Field(default="", max_length=8192)
+    cookie: str = Field(default="", max_length=65536)
+    hostname: str = Field(default="", max_length=253)
+    dlna_port: int = Field(default=8200, ge=1, le=65535)
+    web_port: int = Field(default=8300, ge=1, le=65535)
+    airplay_port_start: int = Field(default=7000, ge=1, le=65534)
     conf_path: str = "conf"
     verbose: bool = False
     auto_resume_on_interrupt: bool = False
-    resume_delay_seconds: int = 5
-    default_volume: int = 30
+    resume_delay_seconds: int = Field(default=5, ge=1, le=15)
+    default_volume: int = Field(default=30, ge=0, le=100)
     follow_device_volume: bool = True
     auto_restart: bool = False
-    web_password: str = ""
+    web_password: str = Field(default="", max_length=1024)
     speakers: dict[str, SpeakerConfig] = Field(default_factory=dict)
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        # Apply environment variable fallbacks
-        if not self.account:
-            import os
-            self.account = os.getenv("MI_USER", "")
-        if not self.password:
-            import os
-            self.password = os.getenv("MI_PASS", "")
-        if not self.mi_did:
-            import os
-            self.mi_did = os.getenv("MI_DID", "")
-        if not self.web_password:
-            import os
-            self.web_password = os.getenv("MIAIR_WEB_PASSWORD", "")
-        if not self.hostname:
-            import os
-            self.hostname = os.getenv("MIAIR_HOSTNAME", "")
-        # hostname is deliberately NOT auto-detected here. A blank value is
-        # resolved at point-of-use (Application.resolve_hostname) so the LAN
-        # address follows DHCP changes instead of being pinned to a stale IP
-        # inside the persisted config.json.
-        
-        # Validate resume_delay_seconds
-        self.resume_delay_seconds = max(1, min(15, self.resume_delay_seconds))
+    @field_validator("mi_did", "dlna_port", "web_port", "airplay_port_start")
+    @classmethod
+    def validate_port_layout(cls, value: Any, info: ValidationInfo) -> Any:
+        """Validate the complete port layout before accepting any assignment."""
+        values = dict(info.data)
+        values[info.field_name] = value
+        required = {"mi_did", "dlna_port", "web_port", "airplay_port_start"}
+        if not required.issubset(values):
+            return value
+
+        dlna_port = values["dlna_port"]
+        web_port = values["web_port"]
+        airplay_port_start = values["airplay_port_start"]
+        if dlna_port == web_port:
+            raise ValueError("DLNA and Web management ports must be different")
+
+        dids = [did.strip() for did in values["mi_did"].split(",") if did.strip()]
+        speaker_count = max(1, len(dids))
+        airplay_end = airplay_port_start + speaker_count * 2 - 1
+        if airplay_end > 65535:
+            raise ValueError(
+                "AirPlay port range exceeds 1-65535; lower "
+                "airplay_port_start or configure fewer speakers"
+            )
+
+        reserved = {dlna_port, web_port}
+        if any(
+            port in reserved
+            for port in range(airplay_port_start, airplay_end + 1)
+        ):
+            raise ValueError("AirPlay ports overlap the DLNA or Web management port")
+        return value
 
     @property
     def log_file(self) -> str:

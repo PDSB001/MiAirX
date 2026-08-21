@@ -1,10 +1,10 @@
 # MiAirX 项目交接
 
-最后更新：2026-08-16
+最后更新：2026-08-21
 
 ## 当前状态
 
-MiAirX 当前版本线为 1.5.0。核心 DLNA、AirPlay 1、媒体代理、多设备配置和管理台均已实现。工作区中的管理台已经迁移到 React/TypeScript，根路径使用新页面，旧页面保留在 `/legacy`。
+MiAirX 当前版本线为 1.6.0。核心 DLNA、AirPlay 1、媒体代理、多设备配置和 React 管理台均已实现，旧页面保留在 `/legacy`。
 
 最近一轮重点改动：
 
@@ -15,6 +15,10 @@ MiAirX 当前版本线为 1.5.0。核心 DLNA、AirPlay 1、媒体代理、多�
 - Web 管理台迁移到 React + Vite + TanStack Query
 - Docker 改成前端构建、Python 运行的多阶段镜像
 - CI 增加前端、浏览器和静态产物一致性检查
+- 新增小米账号扫码登录和智能音箱自动发现
+- 新增可选的管理台密码保护
+- 新增配置热重载，只有 Web 管理端口仍需进程重启
+- 新增实时日志、脱敏诊断包和版本检测
 
 ## 关键目录
 
@@ -88,8 +92,7 @@ SSDP 和 AirPlay Zeroconf 当前明确使用 IPv4。Docker 环境中恢复双栈
 ## 配置注意点
 
 - `hostname` 必须是音箱可访问的局域网地址。
-- 管理台保存不会热重启服务。
-- `proxy_enabled`、`auto_play_on_set_uri`、`enable_voice_control`、`voice_poll_interval` 是兼容性保留字段，当前没有完整运行路径。
+- 管理台会按配置影响范围重建音箱、DLNA 或 AirPlay 服务；只有 `web_port` 需要进程重启。
 - `auto_restart` 只请求退出，需要外部监督器拉起。
 - `conf/config.json` 含敏感信息，绝不能提交。
 
@@ -116,7 +119,7 @@ docker build -t miairx:test .
 
 ## 已知限制
 
-- 管理台没有认证，只适合可信 LAN。
+- 管理台支持可选密码认证，但仍不建议直接暴露到公网。
 - Docker Desktop 的虚拟网络通常无法正确承载组播。
 - AirPlay 1 对发送端版本和音频格式较敏感。
 - 媒体源的 DRM、过期签名或特殊鉴权不在 MiAirX 能力范围内。
@@ -125,11 +128,10 @@ docker build -t miairx:test .
 
 ## 后续优先级
 
-1. 为 Web API 增加局域网认证或可选访问令牌。
-2. 对配置更新增加后端校验和明确的热重载能力边界。
-3. 为大文件流式代理增加更多上游异常与 Range 集成测试。
-4. 整理 AirPlay 兼容矩阵并补充真实设备回归。
-5. 将保留配置字段实现或迁移清理。
+1. 为大文件流式代理增加更多上游异常与 Range 集成测试。
+2. 整理 AirPlay 兼容矩阵并补充真实设备回归。
+3. 以成熟 RAOP 实现为行为参考，补齐原生 AirPlay 接收链路。
+4. 根据真实用户反馈规划播放队列与轻量自动化接口。
 
 ## 发版检查
 

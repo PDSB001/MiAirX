@@ -49,18 +49,14 @@ docker compose logs -f miairx
 http://Linux宿主机IP:8300
 ```
 
-保存设备后执行：
-
-```bash
-docker compose restart miairx
-```
+保存设备后，MiAirX 会自动重建音箱、DLNA 与 AirPlay 服务；只有修改管理端口时需要重启容器。
 
 ## 使用 docker pull 和 docker run
 
 `docker pull` 只下载镜像，不会启动容器或修改宿主机防火墙：
 
 ```bash
-docker pull jxydk/miairx:master
+docker pull jxydk/miairx:1.6.0
 ```
 
 然后创建配置目录并启动：
@@ -77,7 +73,7 @@ docker run -d \
   -e MIAIR_HOSTNAME='192.168.1.10' \
   -e MIAIR_AIRPLAY_PORT_START='7000' \
   -v "$(pwd)/conf:/app/conf" \
-  jxydk/miairx:master
+  jxydk/miairx:1.6.0
 ```
 
 ## 镜像中的前端
@@ -148,7 +144,7 @@ docker compose up -d
 docker image prune
 ```
 
-`master` 标签跟随主分支。正式版本也会生成语义化版本标签，例如 `1.5.0` 和 `1.5`。对稳定部署，建议固定完整版本标签。
+`master` 标签跟随主分支，可能包含尚未发布的更改。正式版本会生成完整版本和次版本标签，例如 `1.6.0` 和 `1.6`；稳定部署建议固定完整版本标签。
 
 ## 健康检查
 

@@ -1,5 +1,5 @@
 appname               = miairx
-version               = 1.5.0
+version               = 1.6.0
 display_name          = MiAirX
 desc                  = 将 DLNA 和 AirPlay 音频投放到小爱音箱
 platform              = all

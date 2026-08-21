@@ -45,7 +45,11 @@
 - 支持大媒体文件流式代理，避免整文件常驻内存
 - 支持不兼容格式的 FFmpeg 转换与 Seek 回退
 - 提供 AirPlay 1 / RAOP 接收服务
-- 支持多音箱、账号密码或 Cookie 登录
+- 支持多音箱、账号密码、Cookie 或小米账号扫码登录
+- 自动发现账号下的智能音箱并支持一键选择
+- 配置保存后按影响范围热重载服务
+- 提供可选的管理台密码保护
+- 提供实时日志、脱敏诊断包与版本检测
 - 提供 React 管理台，支持桌面与移动端
 - 支持 Windows、macOS、Linux；Docker 推荐 Linux 主机网络
 
@@ -89,9 +93,9 @@ miairx
 MiAirX 可以在没有账号和音箱的情况下先启动管理台：
 
 1. 打开 `http://127.0.0.1:8300`
-2. 在「系统设置」填写小米账号密码，或填写 Cookie 的 `userId` 与 `passToken`
-3. 进入「设备管理」，刷新并选择音箱
-4. 保存后手动重启 MiAirX
+2. 在「系统设置」选择扫码、账号密码或 Cookie 登录
+3. 进入「设备管理」，自动发现并选择音箱
+4. 保存配置；除管理端口外，相关服务会自动热重载
 
 管理台不会回显已保存的密码和 Cookie。配置默认保存在 `conf/config.json`，不要把该文件提交到 Git。
 
@@ -112,13 +116,14 @@ MiAirX 可以在没有账号和音箱的情况下先启动管理台：
 |---|---|
 | 播放控制 | 查看渲染器状态、URL 投放、暂停、停止、音量和播放进度 |
 | 设备管理 | 从小米云设备中选择一个或多个音箱 |
-| 系统设置 | 登录凭据、广播地址、端口、代理、恢复、音量、语音和诊断设置 |
+| 系统设置 | 登录凭据、广播地址、端口、恢复、音量、后台安全和版本检测 |
+| 日志与诊断 | 查看实时日志并下载已脱敏的诊断包 |
 
 新版管理台由 React、TypeScript、Vite 和 TanStack Query 构建。生产环境中只部署编译后的静态文件，不需要 Node.js。
 
 旧版单文件管理页仍保留在 `http://主机IP:8300/legacy`，可在新版静态资源异常时用于恢复配置。
 
-> 管理台当前没有登录认证，只应在可信局域网中使用。不要把 8300 端口直接暴露到公网。
+管理台可在「系统设置 → 后台安全」启用密码保护。即使开启认证，也不建议把 8300 端口直接暴露到公网；远程访问请优先使用可信 VPN 或反向代理的 HTTPS 与访问控制。
 
 ## Docker
 
@@ -133,7 +138,7 @@ docker run -d \
   -e MI_USER='你的小米账号' \
   -e MI_PASS='你的小米密码' \
   -v "$(pwd)/conf:/app/conf" \
-  jxydk/miairx:master
+  jxydk/miairx:1.6.0
 ```
 
 然后访问 `http://Linux主机局域网IP:8300`。
@@ -160,6 +165,7 @@ Windows/macOS 的 Docker Desktop 运行在虚拟机网络中，`network_mode: ho
 | `MIAIR_HOSTNAME` | `hostname` | 其他设备可访问的主机 IPv4 地址 |
 | `MIAIR_DLNA_PORT` | `dlna_port` | DLNA HTTP 端口，默认 8200 |
 | `MIAIR_WEB_PORT` | `web_port` | 管理台端口，默认 8300 |
+| `MIAIR_WEB_PASSWORD` | `web_password` | 可选的管理台访问密码 |
 | `MIAIR_AIRPLAY_PORT_START` | `airplay_port_start` | AirPlay TCP 起始端口，默认 7000 |
 | `MIAIR_VERBOSE` | `verbose` | `true/1/yes` 开启详细日志 |
 
@@ -216,7 +222,7 @@ Windows/macOS 的 Docker Desktop 运行在虚拟机网络中，`network_mode: ho
 <details>
 <summary><strong>配置保存后没有立即生效</strong></summary>
 
-设备、端口和部分运行行为需要重建服务。管理台保存成功后，请手动重启 MiAirX。
+账号、音箱、广播地址、DLNA/AirPlay 端口、音量和运行策略会在保存后自动生效。只有管理端口 `web_port` 变更仍需重启 MiAirX，因为当前请求所在的 Web 服务无法在响应过程中重新绑定端口；管理台会明确提示。
 </details>
 
 ## 开发与文档

@@ -3,7 +3,7 @@
 
 services:
   miairx:
-    image: jxydk/miairx:master
+    image: jxydk/miairx:1.6.0
     container_name: miairx
     network_mode: host
     restart: unless-stopped

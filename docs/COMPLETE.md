@@ -11,27 +11,28 @@
 - 小文件内存缓冲和大文件流式代理
 - Range、媒体 token、buffer 回收和 FFmpeg Seek
 - AirPlay 1 / RAOP 接收与 IPv4 mDNS 广播
-- 账号密码和 Cookie 登录
+- 账号密码、Cookie 和小米账号扫码登录
 - React/TypeScript 响应式管理台
-- 设备选择和完整配置持久化
+- 智能音箱自动发现、设备选择和完整配置持久化
+- 可选的管理台密码保护
+- 配置按影响范围热重载，仅管理端口需要进程重启
+- 实时日志、脱敏诊断包和 GitHub 版本检测
 - wheel/sdist 静态资源打包
 - Linux host-network Docker 多阶段镜像
 - Python、Vitest 和 Playwright 自动化测试
 
 ## 当前限制
 
-- 管理台没有访问认证
 - Docker Desktop 不适合作为组播部署环境
 - AirPlay 兼容性弱于 DLNA
 - DRM 或强鉴权媒体无法代理
-- 配置变更需要手动重启
-- 少量历史配置字段当前为保留项
+- 管理端口变更需要手动重启进程
 
 ## 当前验证基线
 
 最近一次前端重写验证包括：
 
-- Python：103 项测试通过
+- Python：以当前 CI 输出为准
 - Vitest：3 项测试通过
 - Playwright：桌面端和移动端 2 项冒烟测试通过
 - TypeScript 严格类型检查通过

@@ -131,35 +131,43 @@ function QrLoginModal({ onClose }: { onClose: () => void }) {
 
 function VersionPanel() {
   const version = useQuery({ queryKey: ["version"], queryFn: () => api.version(), retry: false });
+  const [manualCheckState, setManualCheckState] = useState<"idle" | "checking" | "done" | "failed">("idle");
   const data = version.data;
+  const checking = version.isFetching || manualCheckState === "checking";
+  const state = checking
+    ? { label: "正在检查更新…", cls: "" }
+    : data?.error
+      ? { label: "无法连接 GitHub", cls: "offline" }
+      : data?.update_available
+        ? { label: "有新版本可更新", cls: "has-update" }
+        : { label: "当前已是最新版本", cls: "up-to-date" };
+  const checkAgain = async () => {
+    setManualCheckState("checking");
+    const result = await version.refetch();
+    setManualCheckState(result.isError || Boolean(result.data?.error) ? "failed" : "done");
+  };
   return (
     <section className="settings-section version-panel">
-      <div className="settings-section-title">
+      <div className="version-compact">
         <div className="settings-icon green"><Rocket size={20} /></div>
-        <div><h2>版本检测</h2><p>检查 GitHub 上的最新发布版本</p></div>
+        <div className="version-copy">
+          <h2>版本检测</h2>
+          <p>
+            {data
+              ? <>当前 v{data.current_version}{data.latest_version ? ` · 最新 ${data.latest_version}` : ""}</>
+              : version.isFetching ? "正在连接 GitHub…" : "暂时无法获取版本信息"}
+          </p>
+        </div>
+        <em className={`version-state ${state.cls}`}>{state.label}</em>
         <div className="version-actions">
-          {data?.update_available && <em className="update-badge">有新版本</em>}
-          <button type="button" className="button secondary small" onClick={() => void version.refetch()} disabled={version.isFetching}>
-            <RefreshCw className={version.isFetching ? "spin" : ""} size={14} />重新检查
+          {data?.update_available && data.url && (
+            <a className="button secondary small" href={data.url} target="_blank" rel="noreferrer"><ExternalLink size={14} />更新</a>
+          )}
+          <button type="button" className="button secondary small" onClick={() => void checkAgain()} disabled={checking} aria-live="polite">
+            <RefreshCw className={checking ? "spin" : ""} size={14} />
+            {checking ? "检查中…" : manualCheckState === "done" ? "已检查" : manualCheckState === "failed" ? "重试" : "检查"}
           </button>
         </div>
-      </div>
-      <div className="version-content">
-        {version.isFetching && <p className="version-line muted">正在检查更新…</p>}
-        {version.isError && <p className="version-line muted">检查失败：{(version.error as Error).message}</p>}
-        {data && (
-          <div className="version-rows">
-            <div className="version-stat"><span>当前版本</span><strong>v{data.current_version}</strong></div>
-            <div className="version-stat"><span>最新版本</span><strong>{data.latest_version ?? "—"}</strong></div>
-          </div>
-        )}
-        {data?.update_available && data.url && (
-          <a className="button secondary small" href={data.url} target="_blank" rel="noreferrer"><ExternalLink size={15} />查看更新</a>
-        )}
-        {data && !data.update_available && !data.error && (
-          <p className="version-line muted">当前已是最新版本。</p>
-        )}
-        {data?.error && <p className="version-line muted">无法连接 GitHub，稍后可重试。</p>}
       </div>
     </section>
   );
@@ -299,6 +307,7 @@ export function SettingsPage() {
               <label className="field"><span>AirPlay 起始端口</span><input type="number" min={1} max={65534} value={draft.airplay_port_start} onChange={(event) => update("airplay_port_start", Number(event.target.value))} /><small>每台音箱依次占用两个 TCP 端口。</small></label>
             </div>
           </section>
+          <VersionPanel />
           </div>
           <div className="settings-col">
           <section className="settings-section">
@@ -334,7 +343,6 @@ export function SettingsPage() {
           </section>
           </div>
 
-          <VersionPanel />
           <div className={`save-bar ${hasChanges ? "has-changes" : "is-saved"}`}><div><strong>{hasChanges ? "有未保存的更改" : "配置已是最新"}</strong><span>{hasChanges ? (willNeedRestart ? "管理端口变更，保存后需重启 MiAirX 才生效。" : willInterrupt ? "保存后将热重载相关服务，可能短暂中断正在播放的内容。" : "保存后自动生效，不会中断正在播放的内容。") : "修改任意设置后，可在这里统一保存。"}</span></div><button type="submit" className="button primary large" disabled={!hasChanges || save.isPending}><Save size={18} />{save.isPending ? "正在保存" : hasChanges ? "保存全部设置" : "已保存"}</button></div>
         </form>
       )}

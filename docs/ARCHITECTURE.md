@@ -214,4 +214,4 @@ Docker 必须使用 Linux host 网络，原因不是 HTTP 端口映射，而是�
 - SOAP/XML 的 namespace 和响应格式属于兼容性边界。
 - 不应把不可靠的云端状态直接覆盖本地播放意图。
 - 媒体 URL 必须能被音箱访问，不能使用 localhost。
-- Web 配置保存不等于热重载，服务拓扑变化需要重启。
+- Web 配置保存后会按影响范围热重载音箱、DLNA 与 AirPlay 组件；只有 Web 管理端口变更需要进程重启。

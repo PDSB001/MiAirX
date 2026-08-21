@@ -125,9 +125,15 @@ Windows 可以使用 `tar -tf dist\miairx-*.whl` 查看 wheel 内容。
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | GET | `/api/status` | 版本和服务状态 |
+| GET | `/api/version` | 检查 GitHub 最新发布版本 |
+| GET/POST | `/api/auth/status`、`/api/auth/login` | 管理台认证状态与登录 |
+| POST/GET | `/api/auth/qrcode`、`/api/auth/qrcode/poll` | 小米账号扫码登录 |
 | GET/POST | `/api/config` | 读取/保存配置 |
 | GET | `/api/speakers` | 已注册音箱 |
 | GET | `/api/devices` | 小米云设备 |
+| GET | `/api/devices/discover` | 自动发现智能音箱 |
+| GET | `/api/logs/stream` | 实时日志流 |
+| GET | `/api/diagnostics` | 下载脱敏诊断包 |
 | GET | `/api/positions` | 播放位置和状态 |
 | POST | `/api/play` | URL 播放 |
 | POST | `/api/pause` | 暂停 |

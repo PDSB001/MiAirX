@@ -24,7 +24,8 @@ class TestParseTagFromLocation:
 
 class TestVersionCheckerFetch:
     @pytest.mark.asyncio
-    async def test_follows_redirect_for_version(self):
+    async def test_follows_redirect_for_version(self, monkeypatch):
+        monkeypatch.setattr("miairx.version_check.__version__", "1.5.0")
         session = MagicMock()
         resp = AsyncMock()
         resp.status = 302

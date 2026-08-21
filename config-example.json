@@ -6,16 +6,14 @@
   "hostname": "",
   "dlna_port": 8200,
   "web_port": 8300,
+  "airplay_port_start": 7000,
   "conf_path": "conf",
   "verbose": false,
-  "proxy_enabled": false,
-  "auto_play_on_set_uri": false,
   "auto_resume_on_interrupt": false,
   "resume_delay_seconds": 5,
   "default_volume": 30,
   "follow_device_volume": true,
-  "enable_voice_control": false,
   "auto_restart": false,
-  "voice_poll_interval": 1,
+  "web_password": "",
   "speakers": {}
 }

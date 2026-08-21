@@ -1,6 +1,6 @@
 services:
   miairx:
-    image: jxydk/miairx:1.5.0
+    image: jxydk/miairx:1.6.0
     container_name: fnos-miairx
     network_mode: host
     restart: unless-stopped

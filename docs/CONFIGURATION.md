@@ -39,6 +39,10 @@ miairx --config /path/to/conf
 
 ## 登录方式
 
+### 扫码登录
+
+在管理台「系统设置 → 小米账号 → 扫码登录」中获取二维码，使用小米账号 App 扫描并确认。成功后 MiAirX 会保存所需 Cookie、刷新音箱信息并立即重建相关服务，无需在页面中输入账号密码。
+
 ### 账号密码
 
 填写 `account` 和 `password`。如果小米登录风控阻止密码登录，可以改用 Cookie。
@@ -74,10 +78,7 @@ Cookie 字符串至少需要 `userId` 和 `passToken`：
 | `default_volume` | `30` | 不跟随设备音量时，首次播放应用的音量 |
 | `follow_device_volume` | `true` | 保留音箱当前音量，不主动套用默认音量 |
 | `auto_restart` | `false` | 连续登录失败达到阈值时请求进程退出；需 Docker/systemd 等监督器负责拉起 |
-| `proxy_enabled` | `false` | 兼容性保留字段；当前 DLNA 路径会自动使用媒体代理 |
-| `auto_play_on_set_uri` | `false` | 兼容性保留字段；当前版本尚未接入播放状态机 |
-| `enable_voice_control` | `false` | 兼容性保留字段；当前版本尚未接入独立语音控制器 |
-| `voice_poll_interval` | `1` | 与语音控制器配套的保留字段，当前不生效 |
+| `web_password` | `""` | 可选的管理台访问密码；留空表示不启用登录保护 |
 | `speakers` | `{}` | 每台音箱的详细信息，由程序和设备选择流程维护 |
 
 ## 环境变量
@@ -90,6 +91,7 @@ Cookie 字符串至少需要 `userId` 和 `passToken`：
 | `MIAIR_HOSTNAME` | string | 主机局域网 IPv4 |
 | `MIAIR_DLNA_PORT` | integer | DLNA 端口 |
 | `MIAIR_WEB_PORT` | integer | Web 端口 |
+| `MIAIR_WEB_PASSWORD` | string | 管理台访问密码；未设置时不启用认证 |
 | `MIAIR_AIRPLAY_PORT_START` | integer | AirPlay TCP 起始端口 |
 | `MIAIR_VERBOSE` | boolean | `true`、`1` 或 `yes` 表示开启 |
 
@@ -126,14 +128,15 @@ miairx --help
 
 ## 修改何时生效
 
-管理台会把配置写入文件，但不会主动重启服务。以下变化必须手动重启：
+管理台保存后会按影响范围应用配置：
 
-- 账号、密码或 Cookie
-- 音箱 DID 列表
-- 主机地址、DLNA/Web 端口和 AirPlay 起始端口
-- 详细日志和运行策略
+- 账号、密码、Cookie 或扫码凭据变更：清理登录会话并重建音箱、DLNA 与 AirPlay 服务。
+- 音箱列表、主机地址、DLNA/AirPlay 端口和默认音量变更：重建受影响的服务。
+- 详细日志和运行策略：直接在运行时生效。
+- 后台密码：立即生效，并为当前浏览器重新签发登录会话。
+- 管理端口 `web_port`：保存成功，但仍需重启进程以绑定新端口。
 
-只在管理台中调整音量或发送播放控制，不需要重启。
+服务重建期间正在播放的内容可能短暂中断，管理台保存栏会在提交前给出提示。
 
 ## 旧配置升级
 
@@ -150,7 +153,7 @@ miairx --help
 
 ## 安全建议
 
-- 只在可信局域网开放 8300；管理台当前没有认证。
+- 只在可信局域网开放 8300，并按需设置 `web_password`。
 - 不要把 `conf/` 挂载到多人可读目录。
 - Docker/NAS 上建议限制配置目录权限。
-- 分享日志前搜索并移除账号、DID、媒体 URL 和局域网地址。
+- 优先使用管理台生成的脱敏诊断包；公开分享前仍应检查账号、DID、媒体 URL 和局域网地址。

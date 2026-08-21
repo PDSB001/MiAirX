@@ -1,11 +1,13 @@
 """Web application factory for MiAirX"""
 
 import asyncio
+import ipaddress
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from aiohttp import web
 from pydantic import BaseModel, Field, ValidationError
@@ -14,7 +16,13 @@ from miairx import __version__
 from miairx.auth.qr_login import STATE_CONFIRMED
 from miairx.config.models import AppConfig
 from miairx.config.store import ConfigStore
+from miairx.core.health import build_health_snapshot
 from miairx.core.log_buffer import get_log_buffer
+from miairx.core.playback_errors import (
+    PLAYBACK_ERROR_MESSAGES,
+    PlaybackErrorCode,
+    classify_playback_exception,
+)
 from miairx.web.auth import (
     _COOKIE_NAME,
     _LOGIN_LIMITER_KEY,
@@ -79,6 +87,8 @@ def create_web_app(config: "AppConfig", app: "Application", config_store: Config
     web_app.router.add_post("/api/auth/qrcode", handle_qr_start)
     web_app.router.add_get("/api/auth/qrcode/poll", handle_qr_poll)
     web_app.router.add_get("/api/status", handle_status)
+    web_app.router.add_get("/health", handle_health)
+    web_app.router.add_get("/api/health", handle_health)
     web_app.router.add_get("/api/version", handle_version)
     web_app.router.add_get("/api/logs/stream", handle_log_stream)
     web_app.router.add_get("/api/diagnostics", handle_diagnostics)
@@ -132,9 +142,15 @@ async def handle_status(request: web.Request) -> web.Response:
         "is_running": app._is_running,
         "account": config.account[:3] + "***" if config.account else "",
         "mi_did": config.mi_did,
+        "setup_completed": config.setup_completed,
     }
     
     return web.json_response(status)
+
+
+async def handle_health(request: web.Request) -> web.Response:
+    """Return the small runtime health snapshot used by Docker and the UI."""
+    return web.json_response(build_health_snapshot(request.app["app"]))
 
 
 async def handle_version(request: web.Request) -> web.Response:
@@ -289,6 +305,7 @@ async def handle_get_config(request: web.Request) -> web.Response:
         "follow_device_volume": config.follow_device_volume,
         "auto_restart": config.auto_restart,
         "web_password": "***" if config.web_password else "",
+        "setup_completed": config.setup_completed,
     }
     
     return web.json_response(config_data)
@@ -311,6 +328,7 @@ async def handle_save_config(request: web.Request) -> web.Response:
             "auto_resume_on_interrupt", "resume_delay_seconds",
             "default_volume", "follow_device_volume", "auto_restart",
             "web_password",
+            "setup_completed",
         }
         unknown_fields = set(data) - allowed_fields
         if unknown_fields:
@@ -385,6 +403,8 @@ async def handle_save_config(request: web.Request) -> web.Response:
 async def handle_speakers(request: web.Request) -> web.Response:
     """Handle speakers API endpoint."""
     config = request.app["config"]
+    app = request.app["app"]
+    cached_health = getattr(app, "_speaker_health", {})
     
     speakers = []
     for did, speaker in config.speakers.items():
@@ -395,6 +415,7 @@ async def handle_speakers(request: web.Request) -> web.Response:
             "enabled": speaker.enabled,
             "udn": speaker.udn,
             "device_id": speaker.device_id,
+            "status": cached_health.get(did, {}).get("status", "unknown"),
         })
     
     return web.json_response(speakers)
@@ -405,6 +426,9 @@ async def handle_devices(request: web.Request) -> web.Response:
     app = request.app["app"]
     
     devices = await app.get_all_devices()
+    auth_error = _xiaomi_status_error(app, devices)
+    if auth_error:
+        return auth_error
     return web.json_response(devices)
 
 
@@ -412,7 +436,30 @@ async def handle_discover_speakers(request: web.Request) -> web.Response:
     """Auto-discover smart speakers and return them for one-click selection."""
     app = request.app["app"]
     speakers = await app.discover_speakers()
+    auth_error = _xiaomi_status_error(app, speakers)
+    if auth_error:
+        return auth_error
     return web.json_response(speakers)
+
+
+def _xiaomi_status_error(app, result: list[dict]) -> web.Response | None:
+    """Surface account failures when a Xiaomi list request returned nothing."""
+    if result or not getattr(app, "auth", None):
+        return None
+    status = app.auth.login_status()
+    messages = {
+        "not_configured": (400, "尚未配置小米账号，请先扫码登录。"),
+        "expired": (401, "小米登录已失效，请重新扫码登录。"),
+        "network_error": (503, "连接小米服务时发生网络错误，请检查网络后重试。"),
+        "service_unavailable": (503, "小米服务暂时不可用，请稍后重试。"),
+    }
+    if status not in messages:
+        return None
+    http_status, message = messages[status]
+    return web.json_response(
+        {"success": False, "xiaomi_status": status, "error": message},
+        status=http_status,
+    )
 
 
 async def handle_play(request: web.Request) -> web.Response:
@@ -424,27 +471,61 @@ async def handle_play(request: web.Request) -> web.Response:
         
         if not did or not url:
             return web.json_response(
-                {"success": False, "error": "Missing did or url"},
+                {
+                    "success": False,
+                    "error_code": PlaybackErrorCode.UNSUPPORTED_MEDIA,
+                    "error": PLAYBACK_ERROR_MESSAGES[PlaybackErrorCode.UNSUPPORTED_MEDIA],
+                },
                 status=400,
+            )
+
+        parsed = urlparse(str(url))
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return _playback_error_response(PlaybackErrorCode.UNSUPPORTED_MEDIA, 400)
+        try:
+            source_ip = ipaddress.ip_address(parsed.hostname)
+        except ValueError:
+            source_ip = None
+        if parsed.hostname.lower() == "localhost" or (source_ip and source_ip.is_loopback):
+            return _playback_error_response(
+                PlaybackErrorCode.NETWORK_CONFIGURATION_ERROR,
+                400,
             )
         
         app = request.app["app"]
         controller = app.speaker_manager.get_controller_by_did(did)
         
         if not controller:
-            return web.json_response(
-                {"success": False, "error": f"Speaker {did} not found"},
-                status=404,
-            )
+            return _playback_error_response(PlaybackErrorCode.SPEAKER_UNAVAILABLE, 404)
+
+        auth = getattr(app, "auth", None)
+        if auth and auth.login_status() == "expired":
+            return _playback_error_response(PlaybackErrorCode.XIAOMI_AUTH_EXPIRED, 401)
+        speaker_health = getattr(app, "_speaker_health", {}).get(did, {})
+        if speaker_health.get("status") == "offline":
+            return _playback_error_response(PlaybackErrorCode.SPEAKER_UNAVAILABLE, 503)
         
         result = await controller.play_url(url)
-        return web.json_response({"success": result})
+        if not result:
+            return _playback_error_response(PlaybackErrorCode.MINA_REQUEST_FAILED, 502)
+        return web.json_response({"success": True})
     except Exception as e:
         log.error(f"Play error: {e}")
-        return web.json_response(
-            {"success": False, "error": str(e)},
-            status=500,
-        )
+        return _playback_error_response(classify_playback_exception(e), 502)
+
+
+def _playback_error_response(
+    code: PlaybackErrorCode,
+    status: int,
+) -> web.Response:
+    return web.json_response(
+        {
+            "success": False,
+            "error_code": code,
+            "error": PLAYBACK_ERROR_MESSAGES[code],
+        },
+        status=status,
+    )
 
 
 async def handle_pause(request: web.Request) -> web.Response:

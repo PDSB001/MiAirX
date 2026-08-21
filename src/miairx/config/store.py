@@ -28,7 +28,10 @@ class ConfigStore:
             log.info("Creating default configuration...")
             
             # Create default config
-            config = AppConfig(conf_path=str(self.conf_path))
+            config = AppConfig(
+                conf_path=str(self.conf_path),
+                setup_completed=False,
+            )
 
             # Save default config to file
             try:

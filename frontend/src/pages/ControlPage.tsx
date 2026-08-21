@@ -1,9 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CirclePause, CircleStop, Link2, Play, Radio, Speaker as SpeakerIcon, Volume2 } from "lucide-react";
+import { Activity, AlertTriangle, CirclePause, CircleStop, Cpu, Link2, Play, Radio, Speaker as SpeakerIcon, Volume2, Waves } from "lucide-react";
 import { useMemo, useState } from "react";
 import { api } from "../api/client";
-import { configQuery, positionsQuery, speakersQuery, statusQuery } from "../api/queries";
-import type { PlaybackPosition, Speaker } from "../api/types";
+import { configQuery, healthQuery, positionsQuery, speakersQuery, statusQuery } from "../api/queries";
+import type { HealthSpeaker, PlaybackPosition, Speaker } from "../api/types";
 import { Modal } from "../components/Modal";
 import { EmptyState, ErrorState, LoadingState, PageHeader } from "../components/Ui";
 import { useToast } from "../components/Toast";
@@ -27,7 +27,7 @@ function stateLabel(state?: string) {
   return "等待投放";
 }
 
-function SpeakerCard({ speaker, position, defaultVolume, openPlay }: { speaker: Speaker; position?: PlaybackPosition; defaultVolume: number; openPlay: () => void }) {
+function SpeakerCard({ speaker, health, position, defaultVolume, openPlay }: { speaker: Speaker; health?: HealthSpeaker; position?: PlaybackPosition; defaultVolume: number; openPlay: () => void }) {
   const { showToast } = useToast();
   const [volume, setVolume] = useState(defaultVolume);
   const [seekValue, setSeekValue] = useState<number | null>(null);
@@ -60,6 +60,8 @@ function SpeakerCard({ speaker, position, defaultVolume, openPlay }: { speaker: 
           <div className="speaker-name-row">
             <h2>{speaker.name || `XiaoAI ${speaker.hardware}` || speaker.did}</h2>
             <span className={`playback-state ${isPlaying ? "active" : ""}`}><i />{stateLabel(position?.state)}</span>
+            <span className={`availability-state ${health?.status || speaker.status}`}>{health?.status === "online" || speaker.status === "online" ? "● Online" : health?.status === "offline" || speaker.status === "offline" ? "○ Offline" : "? Unknown"}</span>
+            {health?.current_source && <span className="source-state">{health.current_source}</span>}
           </div>
           <p>{speaker.hardware || "小米智能音箱"} <span>·</span> {speaker.did}</p>
         </div>
@@ -107,12 +109,13 @@ function SpeakerCard({ speaker, position, defaultVolume, openPlay }: { speaker: 
   );
 }
 
-export function ControlPage() {
+export function ControlPage({ onRelogin }: { onRelogin?: () => void }) {
   const { showToast } = useToast();
   const speakers = useQuery(speakersQuery);
   const positions = useQuery(positionsQuery);
   const config = useQuery(configQuery);
   const status = useQuery(statusQuery);
+  const health = useQuery(healthQuery);
   const [target, setTarget] = useState<Speaker | null>(null);
   const [url, setUrl] = useState("");
   const play = useMutation({
@@ -125,6 +128,8 @@ export function ControlPage() {
     onError: (error: Error) => showToast(error.message, "error"),
   });
   const enabledSpeakers = useMemo(() => speakers.data?.filter((speaker) => speaker.enabled) ?? [], [speakers.data]);
+  const healthByDid = useMemo(() => new Map((health.data?.speakers ?? []).map((speaker) => [speaker.did, speaker])), [health.data?.speakers]);
+  const onlineCount = (health.data?.speakers ?? []).filter((speaker) => speaker.status === "online").length;
 
   return (
     <div className="page-view">
@@ -133,9 +138,18 @@ export function ControlPage() {
         title="播放控制"
         description="管理局域网中的小米音箱，投送音频并查看实时播放状态。"
         action={
-          <div className="hero-stat"><Radio size={18} /><span><strong>{enabledSpeakers.length}</strong> 台设备在线</span></div>
+          <div className="hero-stat"><Radio size={18} /><span><strong>{onlineCount}</strong> / {enabledSpeakers.length} 台设备在线</span></div>
         }
       />
+
+      {health.data?.xiaomi.status === "expired" && <section className="health-alert"><AlertTriangle size={20} /><div><strong>小米登录已失效</strong><span>重新登录后会自动恢复设备和播放服务。</span></div><button type="button" className="button primary small" onClick={onRelogin}>重新扫码登录</button></section>}
+
+      <section className="health-grid" aria-label="System Health">
+        <HealthCard icon={<Activity size={18} />} label="System Health" value={health.data?.status === "ok" ? "正常" : "需要注意"} good={health.data?.status === "ok"} />
+        <HealthCard icon={<Waves size={18} />} label="Xiaomi Account" value={xiaomiStatusLabel(health.data?.xiaomi.status)} good={health.data?.xiaomi.status === "normal"} />
+        <HealthCard icon={<Radio size={18} />} label="DLNA / AirPlay" value={`${health.data?.dlna.running ? "DLNA ✓" : "DLNA —"} · ${health.data?.airplay.running ? "AirPlay ✓" : "AirPlay —"}`} good={Boolean(health.data?.dlna.running && health.data?.airplay.running)} />
+        <HealthCard icon={<Cpu size={18} />} label="FFmpeg" value={health.data?.ffmpeg.available ? "可用" : "未安装"} good={Boolean(health.data?.ffmpeg.available)} />
+      </section>
 
       <section className="summary-strip">
         <div><span>服务状态</span><strong className={status.data?.is_running ? "text-success" : ""}>{status.data?.is_running ? "运行中" : "连接中"}</strong></div>
@@ -150,7 +164,7 @@ export function ControlPage() {
           <EmptyState title="还没有可用音箱" description="前往设备管理，从小米云设备中选择至少一台音箱。" />
         )}
         {enabledSpeakers.map((speaker) => (
-          <SpeakerCard key={speaker.did} speaker={speaker} position={positions.data?.positions[speaker.did]} defaultVolume={config.data?.default_volume ?? 30} openPlay={() => setTarget(speaker)} />
+          <SpeakerCard key={speaker.did} speaker={speaker} health={healthByDid.get(speaker.did)} position={positions.data?.positions[speaker.did]} defaultVolume={config.data?.default_volume ?? 30} openPlay={() => setTarget(speaker)} />
         ))}
       </section>
 
@@ -162,4 +176,17 @@ export function ControlPage() {
       </Modal>
     </div>
   );
+}
+
+function xiaomiStatusLabel(status?: string) {
+  if (status === "normal") return "正常";
+  if (status === "expired") return "登录已失效";
+  if (status === "network_error") return "网络错误";
+  if (status === "service_unavailable") return "小米服务暂不可用";
+  if (status === "not_configured") return "未配置";
+  return "检查中";
+}
+
+function HealthCard({ icon, label, value, good }: { icon: React.ReactNode; label: string; value: string; good: boolean }) {
+  return <article className="health-card"><i className={good ? "good" : "warn"}>{icon}</i><span>{label}</span><strong className={good ? "text-success" : ""}>{value}</strong></article>;
 }

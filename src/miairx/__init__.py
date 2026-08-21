@@ -1,3 +1,3 @@
 """MiAirX - Modern DLNA/AirPlay bridge for Xiaomi AI speakers"""
 
-__version__ = "1.6.0"
+__version__ = "1.6.2"

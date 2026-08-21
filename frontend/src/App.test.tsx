@@ -8,7 +8,7 @@ const config = {
   account: "user@example.com", password: "***", mi_did: "123", cookie: "***", hostname: "192.168.1.5",
   dlna_port: 8200, web_port: 8300, airplay_port_start: 7000, verbose: false,
   auto_resume_on_interrupt: true, resume_delay_seconds: 5, default_volume: 30, follow_device_volume: true,
-  auto_restart: false,
+  auto_restart: false, web_password: "", setup_completed: true,
 };
 
 function json(value: unknown) { return Promise.resolve(new Response(JSON.stringify(value), { status: 200 })); }
@@ -19,8 +19,9 @@ describe("App", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const path = String(input);
       if (path.endsWith("/api/status")) return json({ version: "1.0.4", hostname: "192.168.1.5", dlna_port: 8200, web_port: 8300, airplay_port_start: 7000, speakers_count: 1, is_running: true, account: "use***", mi_did: "123" });
+      if (path.endsWith("/api/health")) return json({ status: "ok", miairx: { running: true }, xiaomi: { status: "normal" }, dlna: { running: true }, airplay: { running: true }, ffmpeg: { available: true, version: "ffmpeg test" }, network: { hostname: "192.168.1.5", dlna_port: 8200, web_port: 8300, airplay_port_start: 7000 }, speakers: [{ did: "123", name: "客厅音箱", model: "L05C", status: "online", current_source: "DLNA" }] });
       if (path.endsWith("/api/config")) return json(config);
-      if (path.endsWith("/api/speakers")) return json([{ did: "123", name: "客厅音箱", hardware: "L05C", enabled: true, udn: "uuid:test", device_id: "" }]);
+      if (path.endsWith("/api/speakers")) return json([{ did: "123", name: "客厅音箱", hardware: "L05C", enabled: true, udn: "uuid:test", device_id: "", status: "online" }]);
       if (path.endsWith("/api/positions")) return json({ positions: { "123": { position: 12, duration: 180, state: "PLAYING" } } });
       if (path.endsWith("/api/devices")) return json([{ miotDID: "123", name: "客厅音箱", hardware: "L05C" }]);
       return json({ success: true });
@@ -37,5 +38,19 @@ describe("App", () => {
     await userEvent.click(screen.getByRole("button", { name: /设备管理/ }));
     expect(await screen.findByRole("heading", { name: "设备管理" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /客厅音箱/ })).toBeInTheDocument();
+  });
+
+  it("opens the wizard only for a brand-new installation", async () => {
+    vi.mocked(globalThis.fetch).mockImplementation((input) => {
+      const path = String(input);
+      if (path.endsWith("/api/auth/status")) return json({ auth_enabled: false, authenticated: false });
+      if (path.endsWith("/api/config")) return json({ ...config, setup_completed: false });
+      return json({ success: true });
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+
+    render(<QueryClientProvider client={client}><ToastProvider><App /></ToastProvider></QueryClientProvider>);
+
+    expect(await screen.findByRole("heading", { name: "首次使用向导" })).toBeInTheDocument();
   });
 });

@@ -10,11 +10,13 @@ import io
 import json
 import logging
 import platform
+import re
 import sys
 import zipfile
 from datetime import datetime, timezone
 
 from miairx import __version__
+from miairx.core.health import build_health_snapshot
 
 log = logging.getLogger(__name__)
 
@@ -35,27 +37,28 @@ def redact_config(config) -> dict:
 
 
 def _runtime_snapshot(app) -> dict:
-    speakers = []
-    for speaker in app.config.get_enabled_speakers():
-        speakers.append({
-            "did": speaker.did,
-            "name": speaker.name,
-            "hardware": speaker.hardware,
-            "device_id": speaker.device_id,
-            "udn": speaker.udn,
-        })
+    health = build_health_snapshot(app)
+    speakers = [
+        {
+            "name": speaker["name"],
+            "model": speaker["model"],
+            "status": speaker["status"],
+            "current_source": speaker["current_source"],
+        }
+        for speaker in health["speakers"]
+    ]
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "miairx_version": __version__,
         "python_version": sys.version.split()[0],
         "platform": platform.platform(),
-        "hostname": app.config.hostname,
-        "dlna_port": app.config.dlna_port,
-        "web_port": app.config.web_port,
-        "airplay_port_start": app.config.airplay_port_start,
-        "is_running": app._is_running,
-        "is_logged_in": bool(app.auth and app.auth.is_logged_in()),
+        "ffmpeg": health["ffmpeg"],
+        "xiaomi": health["xiaomi"],
+        "dlna": health["dlna"],
+        "airplay": health["airplay"],
+        "network": health["network"],
+        "miairx": health["miairx"],
         "speakers": speakers,
     }
 
@@ -72,6 +75,26 @@ def _log_file_tail(path: str) -> bytes:
     except OSError as exc:
         log.debug("Could not read log file %s: %s", path, exc)
         return b""
+
+
+def _redact_log_tail(raw: bytes, config) -> bytes:
+    """Remove configured secrets and common credential fields from logs."""
+    text = raw.decode("utf-8", errors="replace")
+    for secret in (config.password, config.cookie, config.web_password):
+        if secret:
+            text = text.replace(secret, "***")
+    text = re.sub(
+        r"(?im)(authorization|cookie)(\s*:\s*)[^\r\n]+",
+        r"\1\2***",
+        text,
+    )
+    text = re.sub(
+        r"(?i)(password|passToken|serviceToken|cookie|authorization|token)"
+        r"([\"']?\s*[=:]\s*[\"']?)([^\s,;\"'}]+)",
+        r"\1\2***",
+        text,
+    )
+    return text.encode("utf-8")
 
 
 def build_diagnostics_bundle(app) -> io.BytesIO:
@@ -92,7 +115,7 @@ def build_diagnostics_bundle(app) -> io.BytesIO:
         # Log tail.
         log_tail = _log_file_tail(app.config.log_file)
         if log_tail:
-            archive.writestr("miair.log", log_tail)
+            archive.writestr("miair.log", _redact_log_tail(log_tail, app.config))
 
     buffer.seek(0)
     return buffer

@@ -3,10 +3,10 @@
 import logging
 from typing import Optional
 
-from miairx.auth.manager import AuthManager
 from miairx.auth.errors import LoginError, TokenExpiredError
+from miairx.auth.manager import AuthManager
 from miairx.config.models import SpeakerConfig
-from miairx.const import DEFAULT_AUDIO_ID, NEED_USE_PLAY_MUSIC_API
+from miairx.const import DEFAULT_AUDIO_ID
 from miairx.core.errors import SpeakerError
 from miairx.speaker.retry import with_login_retry
 
@@ -88,11 +88,13 @@ class SpeakerController:
             
             # Reset failure counter on success
             SpeakerController._consecutive_login_failures = 0
+            self.auth.mark_request_success()
             return ret is not None
         except (LoginError, TokenExpiredError):
             # Re-raise login errors for retry decorator
             raise
         except Exception as e:
+            self.auth.mark_request_error(e)
             message = _short_error(e)
             log.error(f"play_url failed: {message}")
             SpeakerController._consecutive_login_failures += 1
@@ -114,8 +116,10 @@ class SpeakerController:
                 log.info(f"player_pause device_id={self.device_id} ret={ret}")
             
             SpeakerController._consecutive_login_failures = 0
+            self.auth.mark_request_success()
             return True
         except Exception as e:
+            self.auth.mark_request_error(e)
             message = _short_error(e)
             log.error(f"pause failed: {message}")
             SpeakerController._consecutive_login_failures += 1
@@ -131,8 +135,10 @@ class SpeakerController:
             log.info(f"player_stop device_id={self.device_id} ret={ret}")
             
             SpeakerController._consecutive_login_failures = 0
+            self.auth.mark_request_success()
             return True
         except Exception as e:
+            self.auth.mark_request_error(e)
             message = _short_error(e)
             log.error(f"stop failed: {message}")
             SpeakerController._consecutive_login_failures += 1
@@ -150,8 +156,10 @@ class SpeakerController:
             
             self._last_volume = volume
             SpeakerController._consecutive_login_failures = 0
+            self.auth.mark_request_success()
             return True
         except Exception as e:
+            self.auth.mark_request_error(e)
             message = _short_error(e)
             log.error(f"set_volume failed: {message}")
             SpeakerController._consecutive_login_failures += 1
@@ -188,6 +196,7 @@ class SpeakerController:
         await self.auth.ensure_login()
         status = await self.auth.mina_service.player_get_status(self.device_id)
         if status and isinstance(status, dict):
+            self.auth.mark_request_success()
             return status.get("status", SpeakerStatus.STOPPED)
         # Unexpected response shape (None / non-dict) — treat as error
         # rather than silently returning STOPPED, which previously caused

@@ -56,7 +56,7 @@ http://Linux宿主机IP:8300
 `docker pull` 只下载镜像，不会启动容器或修改宿主机防火墙：
 
 ```bash
-docker pull jxydk/miairx:1.6.0
+docker pull jxydk/miairx:1.6.2
 ```
 
 然后创建配置目录并启动：
@@ -73,7 +73,7 @@ docker run -d \
   -e MIAIR_HOSTNAME='192.168.1.10' \
   -e MIAIR_AIRPLAY_PORT_START='7000' \
   -v "$(pwd)/conf:/app/conf" \
-  jxydk/miairx:1.6.0
+  jxydk/miairx:1.6.2
 ```
 
 ## 镜像中的前端
@@ -144,14 +144,14 @@ docker compose up -d
 docker image prune
 ```
 
-`master` 标签跟随主分支，可能包含尚未发布的更改。正式版本会生成完整版本和次版本标签，例如 `1.6.0` 和 `1.6`；稳定部署建议固定完整版本标签。
+`master` 标签跟随主分支，可能包含尚未发布的更改。正式版本会生成完整版本和次版本标签，例如 `1.6.2` 和 `1.6`；稳定部署建议固定完整版本标签。
 
 ## 健康检查
 
 镜像会访问：
 
 ```text
-http://127.0.0.1:8300/api/status
+http://127.0.0.1:8300/health
 ```
 
 查看状态：
@@ -160,7 +160,7 @@ http://127.0.0.1:8300/api/status
 docker inspect --format '{{json .State.Health}}' miairx
 ```
 
-健康检查成功只表示 Web 服务可响应，不代表手机一定能通过组播发现音箱。
+健康接口会汇总 MiAirX、Xiaomi 登录、DLNA、AirPlay、FFmpeg 和音箱状态；它不替代局域网组播排障，容器健康也不保证手机一定能发现音箱。
 
 ## 排障
 

@@ -4,7 +4,7 @@ MiAirX 默认从 `conf/config.json` 读取配置。第一次通过 `start.py` �
 
 > `conf/config.json` 和 `conf/.mi.token` 含账号、密码、Cookie 或小米服务令牌，已被 Git 忽略。不要上传、粘贴到公开 Issue 或打进镜像。
 
-MiAirX 使用原子写入保存这两个凭据文件，并在 Unix/Linux 上尝试把配置目录设为 `0700`、文件设为 `0600`。Windows、NAS ACL 和某些网络文件系统不完全遵循 POSIX 权限位，管理员仍需确保 `conf` 挂载目录只对运行 MiAirX 的账号开放。诊断包只遮罩已知凭据字段，仍包含日志、DID、设备标识和局域网信息，公开分享前必须人工检查。
+MiAirX 使用原子写入保存这两个凭据文件，并在 Unix/Linux 上尝试把配置目录设为 `0700`、文件设为 `0600`。Windows、NAS ACL 和某些网络文件系统不完全遵循 POSIX 权限位，管理员仍需确保 `conf` 挂载目录只对运行 MiAirX 的账号开放。诊断包会遮罩配置凭据，并再次清理日志中的密码、Cookie、Token 和 Authorization；包内仍包含排障所需的设备型号和局域网信息，公开分享前应人工检查。
 
 ## 配置来源与优先级
 
@@ -81,6 +81,7 @@ Cookie 字符串至少需要 `userId` 和 `passToken`：
 | `follow_device_volume` | `true` | 保留音箱当前音量，不主动套用默认音量 |
 | `auto_restart` | `false` | 连续登录失败达到阈值时请求进程退出；需 Docker/systemd 等监督器负责拉起 |
 | `web_password` | `""` | 可选的管理台访问密码；留空表示不启用登录保护 |
+| `setup_completed` | 旧配置为 `true`；全新配置为 `false` | 首次使用向导内部标记；通常不需要手工修改 |
 | `speakers` | `{}` | 每台音箱的详细信息，由程序和设备选择流程维护 |
 
 ## 环境变量
@@ -145,6 +146,7 @@ miairx --help
 旧版 `conf/config.json` 可以直接用于新版 MiAirX，不需要手工补字段：
 
 - 缺少 `airplay_port_start` 时使用默认值 `7000`。
+- 缺少 `setup_completed` 的历史配置按“已完成设置”处理，不会在升级后强制进入向导。
 - 已有账号、Cookie、DID、音箱配置和 DLNA/Web 端口保持不变。
 - 新版管理台保存后会把新增字段写回配置文件。
 - 未识别的历史字段会被忽略，不会阻止应用启动。

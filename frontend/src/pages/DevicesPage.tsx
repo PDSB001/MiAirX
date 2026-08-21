@@ -13,6 +13,7 @@ export function DevicesPage() {
   const queryClient = useQueryClient();
   const devices = useQuery(devicesQuery);
   const config = useQuery(configQuery);
+  const speakers = useQuery(speakersQuery);
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [discovering, setDiscovering] = useState(false);
   useEffect(() => {
@@ -30,6 +31,7 @@ export function DevicesPage() {
   const deviceList = devices.data ?? [];
   const selectedCount = useMemo(() => deviceList.filter((device) => chosen.has(deviceDid(device))).length, [deviceList, chosen]);
   const savedDids = useMemo(() => new Set((config.data?.mi_did ?? "").split(",").map((did) => did.trim()).filter(Boolean)), [config.data?.mi_did]);
+  const statusByDid = useMemo(() => new Map((speakers.data ?? []).map((speaker) => [speaker.did, speaker.status])), [speakers.data]);
   const hasChanges = chosen.size !== savedDids.size || [...chosen].some((did) => !savedDids.has(did));
   const toggle = (did: string) => {
     if (!did) return;
@@ -73,6 +75,7 @@ export function DevicesPage() {
                 <button type="button" className={`device-row ${active ? "selected" : ""}`} onClick={() => toggle(did)} key={did || index} disabled={!did}>
                   <div className="device-symbol"><Router size={21} /></div>
                   <div className="device-copy"><strong>{device.name || "未命名设备"}</strong><span>{device.hardware || device.model || "未知型号"}<i />DID {did || "不可用"}</span></div>
+                  <span className={`availability-state ${statusByDid.get(did) || "unknown"}`}>{statusByDid.get(did) === "online" ? "● Online" : statusByDid.get(did) === "offline" ? "○ Offline" : "? Unknown"}</span>
                   <div className="device-check" aria-label={active ? "已选择" : "未选择"}>{active && <Check size={16} />}</div>
                 </button>
               );

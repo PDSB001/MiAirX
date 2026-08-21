@@ -32,6 +32,17 @@ def test_load_nonexistent(config_store):
     
     assert config.account == ""
     assert config.dlna_port == 8200
+    assert config.setup_completed is False
+
+
+def test_existing_pre_wizard_config_is_treated_as_completed(config_store, temp_dir):
+    """Upgrading an old install must never launch the first-use wizard."""
+    config_file = Path(temp_dir) / "config.json"
+    config_file.write_text('{"account": "existing-user"}', encoding="utf-8")
+
+    config = config_store.load()
+
+    assert config.setup_completed is True
 
 
 def test_save_and_load(config_store, temp_dir):

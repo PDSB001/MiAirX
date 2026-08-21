@@ -8,9 +8,11 @@ export const queryKeys = {
   devices: ["devices"] as const,
   positions: ["positions"] as const,
   auth: ["auth"] as const,
+  health: ["health"] as const,
 };
 
 export const statusQuery = queryOptions({ queryKey: queryKeys.status, queryFn: api.status, refetchInterval: 15_000 });
+export const healthQuery = queryOptions({ queryKey: queryKeys.health, queryFn: api.health, refetchInterval: 15_000 });
 export const configQuery = queryOptions({ queryKey: queryKeys.config, queryFn: api.config });
 export const speakersQuery = queryOptions({ queryKey: queryKeys.speakers, queryFn: api.speakers, refetchInterval: 15_000 });
 export const devicesQuery = queryOptions({ queryKey: queryKeys.devices, queryFn: api.devices, refetchInterval: 30_000 });

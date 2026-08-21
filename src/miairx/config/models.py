@@ -100,6 +100,10 @@ class AppConfig(BaseModel):
     follow_device_volume: bool = True
     auto_restart: bool = False
     web_password: str = Field(default="", max_length=1024)
+    # Existing configuration files predate the setup wizard, so a missing
+    # field must mean "already configured". ConfigStore explicitly writes
+    # False only when it creates a brand-new configuration.
+    setup_completed: bool = True
     speakers: dict[str, SpeakerConfig] = Field(default_factory=dict)
 
     @field_validator("mi_did", "dlna_port", "web_port", "airplay_port_start")

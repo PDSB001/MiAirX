@@ -8,7 +8,7 @@ from typing import Optional
 
 import aiohttp
 from aiohttp import web
-from zeroconf import Zeroconf, IPVersion
+from zeroconf import IPVersion, Zeroconf
 
 from miairx.auth.manager import AuthManager
 from miairx.auth.qr_login import QRLoginManager
@@ -26,7 +26,6 @@ from miairx.protocols.airplay.speaker_airplay import SpeakerAirplay
 from miairx.protocols.dlna.renderer import DlnaRenderer
 from miairx.protocols.dlna.server import DlnaHttpServer
 from miairx.protocols.dlna.ssdp import SsdpServer
-from miairx.speaker.controller import SpeakerController
 from miairx.speaker.manager import SpeakerManager
 from miairx.version_check import VersionChecker
 from miairx.web.app import create_web_app
@@ -145,6 +144,8 @@ class Application:
         # AirPlay components
         self._zeroconf: Optional[Zeroconf] = None
         self._airplay_services: dict[str, SpeakerAirplay] = {}  # did -> SpeakerAirplay
+        self._speaker_health: dict[str, dict[str, object]] = {}
+        self._last_speaker_health_poll = 0.0
         
         # Web management
         self.web_runner: Optional[web.AppRunner] = None
@@ -439,6 +440,9 @@ class Application:
         """Periodic health check task (matches MiAir logic)."""
         while self._is_running:
             try:
+                if time.monotonic() - self._last_speaker_health_poll >= 30:
+                    await self._poll_speaker_availability()
+                    self._last_speaker_health_poll = time.monotonic()
                 await self._poll_speaker_states()
                 await asyncio.sleep(5)
             except asyncio.CancelledError:
@@ -455,6 +459,43 @@ class Application:
         ]
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _poll_one_speaker_availability(self, did: str) -> None:
+        """Refresh one cached Online/Offline/Unknown state with a short probe."""
+        controller = self.speaker_manager.get_controller_by_did(did)
+        if not controller or not controller.device_id:
+            self._speaker_health[did] = {"status": "unknown"}
+            return
+        try:
+            await asyncio.wait_for(controller.get_status(), timeout=5.0)
+        except Exception as exc:
+            message = str(exc).lower()
+            known_offline = any(
+                marker in message
+                for marker in (
+                    "offline", "not online", "device unavailable",
+                    "device is not", "设备离线", "unexpected player_get_status",
+                )
+            )
+            self._speaker_health[did] = {
+                "status": "offline" if known_offline else "unknown",
+            }
+        else:
+            self._speaker_health[did] = {"status": "online"}
+
+    async def _poll_speaker_availability(self) -> None:
+        """Probe configured speakers concurrently without delaying one another."""
+        if not self.speaker_manager:
+            return
+        dids = [speaker.did for speaker in self.config.get_enabled_speakers()]
+        stale_dids = set(self._speaker_health) - set(dids)
+        for did in stale_dids:
+            self._speaker_health.pop(did, None)
+        if dids:
+            await asyncio.gather(
+                *(self._poll_one_speaker_availability(did) for did in dids),
+                return_exceptions=True,
+            )
 
     def _handle_state_transition(self, udn, renderer, old_state, new_state) -> str:
         """Handle side-effects of state transitions (matches MiAir)."""
@@ -578,6 +619,7 @@ class Application:
                 log.info("Configuration changed network/volume settings; restarting services")
             await self.restart_dlna()
             await self.restart_airplay()
+            self._last_speaker_health_poll = 0.0
 
         if "verbose" in changed:
             # Reconfigure logging live: console level follows the new verbosity

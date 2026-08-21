@@ -81,7 +81,7 @@ MIAIR_AIRPLAY_PORT_START=7000
 拉取并启动：
 
 ```bash
-docker pull jxydk/miairx:1.6.0
+docker pull jxydk/miairx:1.6.2
 mkdir -p ./conf
 
 docker run -d \
@@ -90,7 +90,7 @@ docker run -d \
   --restart unless-stopped \
   --env-file .env \
   -v "$(pwd)/conf:/app/conf" \
-  jxydk/miairx:1.6.0
+  jxydk/miairx:1.6.2
 ```
 
 使用 `--network host` 时不要添加 `-p`。端口由 MiAirX 直接监听在宿主机上。
@@ -98,7 +98,7 @@ docker run -d \
 更新已有容器：
 
 ```bash
-docker pull jxydk/miairx:1.6.0
+docker pull jxydk/miairx:1.6.2
 docker rm -f miairx
 
 docker run -d \
@@ -107,7 +107,7 @@ docker run -d \
   --restart unless-stopped \
   --env-file .env \
   -v "$(pwd)/conf:/app/conf" \
-  jxydk/miairx:1.6.0
+  jxydk/miairx:1.6.2
 ```
 
 只要 `/app/conf` 已挂载到宿主机，重建容器不会删除配置。如果旧容器没有挂载配置目录，删除前先备份：

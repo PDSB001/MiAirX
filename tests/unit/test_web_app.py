@@ -9,9 +9,12 @@ from aiohttp.web_fileresponse import FileResponse
 from miairx.config.models import AppConfig
 from miairx.web.app import (
     STATIC_DIR,
+    create_web_app,
     handle_get_config,
+    handle_health,
     handle_index,
     handle_legacy_index,
+    handle_play,
     handle_save_config,
     handle_seek,
     handle_status,
@@ -46,6 +49,24 @@ async def test_config_api_exposes_airplay_port_start() -> None:
 
 
 @pytest.mark.asyncio
+async def test_health_endpoint_returns_runtime_snapshot(monkeypatch) -> None:
+    expected = {"status": "ok", "xiaomi": {"status": "normal"}}
+    monkeypatch.setattr("miairx.web.app.build_health_snapshot", lambda app: expected)
+    request = SimpleNamespace(app={"app": object()})
+
+    response = await handle_health(request)
+
+    assert json.loads(response.text) == expected
+
+
+def test_web_app_exposes_exact_health_route() -> None:
+    app = create_web_app(AppConfig(), SimpleNamespace())
+    paths = {route.resource.canonical for route in app.router.routes()}
+
+    assert "/health" in paths
+
+
+@pytest.mark.asyncio
 async def test_status_uses_effective_hostname_when_config_is_blank() -> None:
     config = AppConfig(hostname="")
     app = SimpleNamespace(
@@ -58,6 +79,47 @@ async def test_status_uses_effective_hostname_when_config_is_blank() -> None:
 
     assert config.hostname == ""
     assert json.loads(response.text)["hostname"] == "192.168.1.23"
+
+
+@pytest.mark.asyncio
+async def test_play_reports_expired_xiaomi_login() -> None:
+    controller = SimpleNamespace(play_url=AsyncMock())
+    app = SimpleNamespace(
+        auth=SimpleNamespace(login_status=lambda: "expired"),
+        speaker_manager=SimpleNamespace(get_controller_by_did=lambda did: controller),
+        _speaker_health={},
+    )
+    request = SimpleNamespace(
+        app={"app": app},
+        json=AsyncMock(return_value={"did": "123", "url": "https://example.com/a.mp3"}),
+    )
+
+    response = await handle_play(request)
+    body = json.loads(response.text)
+
+    assert response.status == 401
+    assert body["error_code"] == "XIAOMI_AUTH_EXPIRED"
+    controller.play_url.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_play_reports_offline_speaker() -> None:
+    controller = SimpleNamespace(play_url=AsyncMock())
+    app = SimpleNamespace(
+        auth=SimpleNamespace(login_status=lambda: "normal"),
+        speaker_manager=SimpleNamespace(get_controller_by_did=lambda did: controller),
+        _speaker_health={"123": {"status": "offline"}},
+    )
+    request = SimpleNamespace(
+        app={"app": app},
+        json=AsyncMock(return_value={"did": "123", "url": "https://example.com/a.mp3"}),
+    )
+
+    response = await handle_play(request)
+
+    assert response.status == 503
+    assert json.loads(response.text)["error_code"] == "SPEAKER_UNAVAILABLE"
+    controller.play_url.assert_not_awaited()
 
 
 @pytest.mark.asyncio

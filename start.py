@@ -25,11 +25,12 @@ if not os.path.exists(config_file):
         import shutil
         shutil.copy("config-example.json", config_file)
         print(f"[完成] 已创建配置文件: {config_file}")
-        print("[提示] 请编辑配置文件，填入你的小米账号信息")
+        print("[提示] 请打开 Web 界面完成首次使用向导")
     else:
         # 创建默认配置
         import json
         default_config = {
+            "setup_completed": False,
             "account": "",
             "password": "",
             "mi_did": "",

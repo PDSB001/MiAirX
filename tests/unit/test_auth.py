@@ -1,11 +1,17 @@
 """Unit tests for authentication manager"""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from miairx.auth.manager import AuthManager
-from miairx.auth.cookie import parse_cookie_string, mask_cookie_value, validate_cookie_data
-from miairx.auth.errors import LoginError, TokenExpiredError, CaptchaRequiredError
+import pytest
+
+from miairx.auth.cookie import mask_cookie_value, parse_cookie_string, validate_cookie_data
+from miairx.auth.errors import TokenExpiredError
+from miairx.auth.manager import (
+    XIAOMI_STATUS_EXPIRED,
+    XIAOMI_STATUS_NETWORK_ERROR,
+    XIAOMI_STATUS_SERVICE_UNAVAILABLE,
+    AuthManager,
+)
 from miairx.config.models import AppConfig
 
 
@@ -118,6 +124,19 @@ async def test_auth_manager_login_failure(mock_session):
     
     # Service should continue without login
     assert auth.is_logged_in() is False
+    assert auth.login_status() == XIAOMI_STATUS_EXPIRED
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (TokenExpiredError("token expired"), XIAOMI_STATUS_EXPIRED),
+        (TimeoutError("request timed out"), XIAOMI_STATUS_NETWORK_ERROR),
+        (RuntimeError("503 service unavailable"), XIAOMI_STATUS_SERVICE_UNAVAILABLE),
+    ],
+)
+def test_xiaomi_error_categories(error, expected):
+    assert AuthManager.classify_login_error(error) == expected
 
 
 @pytest.mark.asyncio

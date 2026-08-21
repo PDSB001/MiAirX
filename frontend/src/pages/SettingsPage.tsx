@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, CheckCircle2, ExternalLink, Fingerprint, KeyRound, Network, QrCode, RefreshCw, Rocket, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Activity, ExternalLink, Fingerprint, KeyRound, LifeBuoy, Network, QrCode, RefreshCw, Rocket, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
+import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { configQuery, queryKeys } from "../api/queries";
 import type { AppConfig, ConfigUpdate } from "../api/types";
 import { Modal } from "../components/Modal";
 import { ErrorState, LoadingState, PageHeader, Toggle } from "../components/Ui";
 import { useToast } from "../components/Toast";
+import { XiaomiQrLogin } from "../components/XiaomiQrLogin";
 
 interface Draft extends AppConfig {
   cookieUserId: string;
@@ -18,113 +19,10 @@ function makeDraft(config: AppConfig): Draft {
   return { ...config, password: "", cookieUserId: "", cookiePassToken: "", webPassword: "" };
 }
 
-type QrStatus = "loading" | "waiting" | "scanned" | "confirmed" | "expired" | "failed";
-
 function QrLoginModal({ onClose }: { onClose: () => void }) {
-  const { showToast } = useToast();
-  const queryClient = useQueryClient();
-  const [status, setStatus] = useState<QrStatus>("loading");
-  const [qrcodeImage, setQrcodeImage] = useState("");
-  const [loginUrl, setLoginUrl] = useState("");
-  const [message, setMessage] = useState("正在获取二维码…");
-  const [attempt, setAttempt] = useState(0);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  // A single effect drives fetch-QR + serial long-poll. It depends only on
-  // `attempt` (bumped to re-fetch the QR), NOT on `status`, so the poll loop
-  // runs uninterrupted and the scan-state change is reflected instantly.
-  useEffect(() => {
-    let cancelled = false;
-    let sessionId = "";
-
-    const poll = async () => {
-      while (!cancelled) {
-        let result;
-        try {
-          result = await api.pollQrLogin(sessionId);
-        } catch (error) {
-          if (!cancelled) {
-            setStatus("failed");
-            setMessage((error as Error).message);
-          }
-          return;
-        }
-        if (cancelled) return;
-
-        if (result.state === "confirmed") {
-          setStatus("confirmed");
-          setMessage("登录成功");
-          showToast("小米账号登录成功", "success");
-          void queryClient.invalidateQueries({ queryKey: queryKeys.config });
-          void queryClient.invalidateQueries({ queryKey: queryKeys.speakers });
-          window.setTimeout(() => onCloseRef.current(), 900);
-          return;
-        }
-        if (result.state === "expired" || result.state === "failed") {
-          setStatus(result.state as QrStatus);
-          setMessage(result.message || "登录失败");
-          return;
-        }
-        setStatus(result.state as QrStatus);
-        setMessage(result.message || "等待扫码");
-      }
-    };
-
-    const begin = async () => {
-      setStatus("loading");
-      setMessage("正在获取二维码…");
-      try {
-        const result = await api.startQrLogin();
-        if (cancelled) return;
-        if (!result.success || !result.session_id) throw new Error(result.error || "获取二维码失败");
-        sessionId = result.session_id;
-        setQrcodeImage(result.qrcode_image || "");
-        setLoginUrl(result.login_url || "");
-        setStatus("waiting");
-        setMessage("请使用小米账号 App 扫码");
-        void poll();
-      } catch (error) {
-        if (!cancelled) {
-          setStatus("failed");
-          setMessage((error as Error).message);
-        }
-      }
-    };
-
-    void begin();
-    return () => { cancelled = true; };
-  }, [attempt, queryClient, showToast]);
-
-  const restart = () => {
-    setQrcodeImage("");
-    setLoginUrl("");
-    setAttempt((value) => value + 1);
-  };
-
-  const showQr = status === "waiting" || status === "scanned";
-
   return (
     <Modal open transparent title="扫码登录小米账号" description="用小米账号 App 扫码，登录后凭据自动写入并立即生效。" onClose={onClose}>
-      <div className="qr-body">
-        <div className="qr-stage">
-          {status === "loading" && <div className="qr-state"><RefreshCw className="spin" size={32} /><p>正在获取二维码…</p></div>}
-          {showQr && qrcodeImage && <img className="qr-image" src={qrcodeImage} alt="登录二维码" />}
-          {showQr && !qrcodeImage && loginUrl && <a className="button secondary" href={loginUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} />打开登录链接</a>}
-          {status === "confirmed" && <div className="qr-state"><CheckCircle2 className="qr-success" size={32} /><p>登录成功</p></div>}
-          {(status === "expired" || status === "failed") && (
-            <div className="qr-state">
-              <AlertTriangle className="qr-error" size={32} />
-              <p>{message}</p>
-              <button type="button" className="button secondary" onClick={restart}>重新获取</button>
-            </div>
-          )}
-        </div>
-        <div className={`qr-status qr-status-${status}`} role="status">
-          <span className="qr-status-dot" />
-          <span>{message}</span>
-        </div>
-      </div>
+      <XiaomiQrLogin onConfirmed={() => window.setTimeout(onClose, 900)} />
     </Modal>
   );
 }
@@ -173,7 +71,7 @@ function VersionPanel() {
   );
 }
 
-export function SettingsPage() {
+export function SettingsPage({ onRunSetup, openQrRequested = false, onQrOpened }: { onRunSetup?: () => void; openQrRequested?: boolean; onQrOpened?: () => void }) {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const config = useQuery(configQuery);
@@ -181,6 +79,12 @@ export function SettingsPage() {
   const [qrOpen, setQrOpen] = useState(false);
   const [loginMethod, setLoginMethod] = useState<"password" | "cookie" | "qr">("password");
   const [webAuthEnabled, setWebAuthEnabled] = useState(false);
+  useEffect(() => {
+    if (openQrRequested) {
+      setQrOpen(true);
+      onQrOpened?.();
+    }
+  }, [onQrOpened, openQrRequested]);
   useEffect(() => { if (!draft && config.data) setDraft(makeDraft(config.data)); }, [config.data, draft]);
   useEffect(() => { if (config.data) setWebAuthEnabled(Boolean(config.data.web_password)); }, [config.data?.web_password]);
 
@@ -355,6 +259,9 @@ export function SettingsPage() {
               <Toggle checked={draft.auto_restart} onChange={(value) => update("auto_restart", value)} label="失败后请求重启" description="连续登录失败时退出，由 Docker 或 systemd 负责拉起。" />
               <Toggle checked={draft.verbose} onChange={(value) => update("verbose", value)} label="详细日志" description="输出更多诊断信息，排障完成后建议关闭。" />
             </div>
+          </section>
+          <section className="settings-section">
+            <div className="settings-section-title"><div className="settings-icon green"><LifeBuoy size={20} /></div><div><h2>Setup &amp; Recovery</h2><p>重新运行首次设置向导，不会清除现有配置。</p></div><button type="button" className="button secondary small" onClick={onRunSetup}>Run Setup Wizard</button></div>
           </section>
           </div>
 

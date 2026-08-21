@@ -1,5 +1,6 @@
 """Xiaomi account authentication manager for MiAirX"""
 
+import asyncio
 import logging
 import os
 import re
@@ -7,13 +8,20 @@ import re
 import aiohttp
 from miservice import MiAccount, MiIOService, MiNAService
 
-from miairx.auth.cookie import mask_cookie_value, parse_cookie_string, validate_cookie_data
-from miairx.auth.errors import CaptchaRequiredError, LoginError, TokenExpiredError
+from miairx.auth.cookie import mask_cookie_value, parse_cookie_string
+from miairx.auth.errors import LoginError, TokenExpiredError
 from miairx.auth.token_store import SecureTokenStore
 from miairx.config.models import AppConfig
 from miairx.const import SPEAKER_HARDWARE_PATTERNS
 
 log = logging.getLogger(__name__)
+
+XIAOMI_STATUS_NORMAL = "normal"
+XIAOMI_STATUS_EXPIRED = "expired"
+XIAOMI_STATUS_NETWORK_ERROR = "network_error"
+XIAOMI_STATUS_SERVICE_UNAVAILABLE = "service_unavailable"
+XIAOMI_STATUS_NOT_CONFIGURED = "not_configured"
+XIAOMI_STATUS_UNKNOWN = "unknown"
 
 
 class AuthManager:
@@ -26,6 +34,11 @@ class AuthManager:
         self.mina_service: MiNAService | None = None
         self.miio_service: MiIOService | None = None
         self._logged_in = False
+        self._login_status = (
+            XIAOMI_STATUS_UNKNOWN
+            if config.account or config.cookie
+            else XIAOMI_STATUS_NOT_CONFIGURED
+        )
 
     async def login(self) -> None:
         """Login to Xiaomi account and initialize services."""
@@ -35,6 +48,7 @@ class AuthManager:
             log.warning(f"Config file: {self.config.conf_path}/config.json")
             log.warning(f"Web UI: http://{self.config.hostname}:{self.config.web_port}")
             self._logged_in = False
+            self._login_status = XIAOMI_STATUS_NOT_CONFIGURED
             return
         
         os.makedirs(self.config.conf_path, exist_ok=True)
@@ -90,14 +104,19 @@ class AuthManager:
         if token_data.get("userId") and token_data.get("passToken"):
             # Cookie login: skip login() call, mark as logged in.
             self._logged_in = True
+            # Cookie credentials are only proven valid by the first MiNA
+            # request. Keep this as unknown until that request succeeds.
+            self._login_status = XIAOMI_STATUS_UNKNOWN
             log.info("Cookie login successful")
         else:
             try:
                 await self.account.login("micoapi")
                 self._logged_in = True
+                self._login_status = XIAOMI_STATUS_NORMAL
                 log.info("Xiaomi account login successful")
             except Exception as e:
                 self._logged_in = False
+                self.mark_request_error(e)
                 # Ensure token is not None
                 if not hasattr(self.account, 'token') or self.account.token is None:
                     self.account.token = {"deviceId": "miair_device"}
@@ -140,7 +159,54 @@ class AuthManager:
     def invalidate_session(self) -> None:
         """Invalidate current session (for retry logic)."""
         self._logged_in = False
+        if self.config.account or self.config.cookie:
+            self._login_status = XIAOMI_STATUS_UNKNOWN
         log.info("Session invalidated, will re-login on next request")
+
+    @staticmethod
+    def classify_login_error(error: Exception) -> str:
+        """Classify Xiaomi failures without exposing raw service responses."""
+        message = str(error).lower()
+        if isinstance(error, (TokenExpiredError, LoginError)) or any(
+            marker in message
+            for marker in (
+                "token expired", "invalid token", "servicetoken", "passtoken",
+                "unauthorized", "not logged", "login failed", "70016", "401",
+                "登录失效", "登录过期",
+            )
+        ):
+            return XIAOMI_STATUS_EXPIRED
+        if isinstance(error, (aiohttp.ClientError, asyncio.TimeoutError, OSError)) or any(
+            marker in message
+            for marker in (
+                "timeout", "timed out", "connection", "network", "dns",
+                "cannot connect", "unreachable", "网络",
+            )
+        ):
+            return XIAOMI_STATUS_NETWORK_ERROR
+        if any(
+            marker in message
+            for marker in ("service unavailable", "maintenance", "temporarily", "busy", "502", "503", "504")
+        ):
+            return XIAOMI_STATUS_SERVICE_UNAVAILABLE
+        return XIAOMI_STATUS_SERVICE_UNAVAILABLE
+
+    def mark_request_success(self) -> None:
+        """Record that Xiaomi accepted a real authenticated request."""
+        self._logged_in = True
+        self._login_status = XIAOMI_STATUS_NORMAL
+
+    def mark_request_error(self, error: Exception) -> None:
+        """Record a sanitized Xiaomi failure category for health reporting."""
+        self._login_status = self.classify_login_error(error)
+        if self._login_status == XIAOMI_STATUS_EXPIRED:
+            self._logged_in = False
+
+    def login_status(self) -> str:
+        """Return the current user-facing Xiaomi login category."""
+        if not self.config.account and not self.config.cookie:
+            return XIAOMI_STATUS_NOT_CONFIGURED
+        return self._login_status
 
     @staticmethod
     def _extract_error_code(err_msg: str) -> str:
@@ -157,8 +223,10 @@ class AuthManager:
         
         try:
             devices = await self.mina_service.device_list()
+            self.mark_request_success()
             return devices or []
         except Exception as e:
+            self.mark_request_error(e)
             log.warning(f"Failed to get device list: {e}")
             # Token might be expired
             if self.config.cookie:
@@ -173,8 +241,10 @@ class AuthManager:
             
             try:
                 devices = await self.mina_service.device_list()
+                self.mark_request_success()
                 return devices or []
             except Exception as e2:
+                self.mark_request_error(e2)
                 log.error(f"Still failed after re-login: {e2}")
                 return []
 
@@ -228,3 +298,8 @@ class AuthManager:
         self.mina_service = None
         self.miio_service = None
         self._logged_in = False
+        self._login_status = (
+            XIAOMI_STATUS_UNKNOWN
+            if self.config.account or self.config.cookie
+            else XIAOMI_STATUS_NOT_CONFIGURED
+        )

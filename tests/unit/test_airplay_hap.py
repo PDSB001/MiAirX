@@ -5,6 +5,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+from binascii import unhexlify
 
 import pytest
 
@@ -41,7 +42,7 @@ def shared(client):
 
 
 def proof_fields(client):
-    return {6: b"\3", 3: bytes.fromhex(client.public), 4: bytes.fromhex(client.key_proof)}
+    return {6: b"\3", 3: unhexlify(client.public), 4: unhexlify(client.key_proof)}
 
 
 def test_transient_srp_matches_independent_sender():
@@ -49,7 +50,7 @@ def test_transient_srp_matches_independent_sender():
     second = read_tlv(receiver.setup(write_tlv({0: b"\0", 6: b"\1", 19: b"\x10"})))
     client = srp_client(second)
     fourth = read_tlv(receiver.setup(write_tlv(proof_fields(client))))
-    assert fourth[6] == b"\4" and fourth[4] == bytes.fromhex(client.key_proof_hash)
+    assert fourth[6] == b"\4" and fourth[4] == unhexlify(client.key_proof_hash)
     assert receiver.shared == shared(client) and receiver.channel is not None
     assert read_tlv(receiver.setup(write_tlv(proof_fields(client))))[7] == b"\2"
     assert receiver.channel is None and receiver.shared is None
@@ -163,7 +164,7 @@ async def connect_transient(server, pipeline=None):
             derive(secret, "Control-Salt", "Control-Write-Encryption-Key"),
         )
         fourth = await post(write_tlv(proof_fields(client)), 2)
-        assert fourth[4] == bytes.fromhex(client.key_proof_hash)
+        assert fourth[4] == unhexlify(client.key_proof_hash)
         return reader, writer, channel, secret
     except BaseException:
         writer.close()

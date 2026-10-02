@@ -60,7 +60,9 @@ class AirplayMdns:
             device_id_clean = self.device_id.replace(":", "")
 
             # AirPlay features for audio only (AirPort Express compatible)
-            features = (1 << 9) | (1 << 14) | (1 << 18) | (1 << 19) | (1 << 20) | (1 << 22) | (1 << 23) | (1 << 27)
+            # Classic audio, none/RSA/FairPlay v3 and PCM/ALAC. Do not advertise
+            # HAP pairing, AAC or AirPlay 2 before implementing them.
+            features = (1 << 9) | (1 << 18) | (1 << 19) | (1 << 20)
             features_lo = features & 0xFFFFFFFF
             features_hi = (features >> 32) & 0xFFFFFFFF
             if features_hi > 0:
@@ -71,19 +73,19 @@ class AirplayMdns:
             # RAOP service properties
             raop_properties = {
                 b"ch": b"2",              # Stereo
-                b"cn": b"0,1,2,3",        # PCM, ALAC, AAC, AAC-ELD
-                b"et": b"0,1",            # Encryption: none, RSA
+                b"cn": b"0,1",            # PCM, ALAC
+                b"et": b"0,1,3",          # Encryption: none, RSA, FairPlay v3
                 b"sv": b"false",
-                b"da": b"true",
+                b"da": b"false",
                 b"sr": b"44100",          # Sample rate
                 b"ss": b"16",             # Sample size
                 b"vn": b"65537",
                 b"tp": b"UDP",            # Transport protocol
                 b"vs": b"105.1",          # Version
-                b"am": b"AirPort4,107",   # Model
-                b"sf": b"0x4",
+                b"am": b"MiAirX",         # Do not impersonate a newer Apple receiver.
+                b"sf": b"0x0",
                 b"ft": features_str.encode(),
-                b"md": b"0,1,2",          # Metadata
+                b"md": b"0",              # Text metadata accepted; no artwork decoder.
                 b"pw": b"false",          # Password protected
                 b"fn": self.device_name.encode(),
             }
@@ -110,7 +112,7 @@ class AirplayMdns:
                     if attempt < 2:
                         log.warning(f"RAOP service name conflict ({type(e).__name__}), retrying ({attempt+1}/3)...")
                         try:
-                            self.zeroconf.unregister_all_services()
+                            self.zeroconf.unregister_service(self.raop_info)
                         except Exception:
                             pass
                         time.sleep(2)
@@ -118,10 +120,10 @@ class AirplayMdns:
                         raise
 
             if not registered:
-                log.error(f"Failed to register RAOP service")
+                log.error("Failed to register RAOP service")
                 return
 
-            log.info(f"AirPlay mDNS started")
+            log.info("AirPlay mDNS started")
             log.info(f"  Device name: {self.device_name}")
             log.info(f"  Device ID: {self.device_id}")
             log.info(f"  RTSP port: {self.rtsp_port}")

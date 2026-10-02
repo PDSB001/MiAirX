@@ -64,6 +64,7 @@ export interface AppConfig {
 export type XiaomiLoginStatus = "normal" | "expired" | "network_error" | "service_unavailable" | "not_configured" | "unknown";
 
 export interface HealthSpeaker {
+  airplay?: AirplayRuntime;
   did: string;
   name: string;
   model: string;
@@ -76,7 +77,7 @@ export interface HealthStatus {
   miairx: { running: boolean };
   xiaomi: { status: XiaomiLoginStatus };
   dlna: { running: boolean };
-  airplay: { running: boolean };
+  airplay: { running: boolean; capabilities?: AirplayCapabilities };
   ffmpeg: { available: boolean; version: string | null };
   network: { hostname: string; dlna_port: number; web_port: number; airplay_port_start: number };
   speakers: HealthSpeaker[];
@@ -85,6 +86,31 @@ export interface HealthStatus {
 export interface AuthStatus {
   auth_enabled: boolean;
   authenticated: boolean;
+}
+
+export interface AirplayRuntime {
+  retransmit_requests?: number;
+  discontinuities?: number;
+  timing?: { measured: boolean; samples: number; rtt_ms: number | null };
+  running: boolean;
+  state: "idle" | "connected" | "playing";
+  protocol: "raop" | "ap2_realtime" | null;
+  rtsp_port: number;
+  audio_port: number;
+  event_port: number | null;
+  packets: { received: number; decoded: number; lost: number; invalid: number };
+}
+
+export interface AirplayCapabilities {
+  raop: boolean;
+  fairplay_v3: boolean;
+  hap_transient: boolean;
+  ap2_realtime: "experimental" | false;
+  persistent_pairing: boolean;
+  buffered_audio: boolean;
+  ptp: boolean;
+  ap2_discovery: boolean;
+  ios_verified: boolean;
 }
 
 export interface VersionInfo {

@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps
-COPY pyproject.toml README.md .
+COPY pyproject.toml README.md LICENSE THIRD_PARTY_NOTICES.md DISTRIBUTION_LICENSE.md .
 COPY src/ src/
 COPY --from=frontend-builder /build/src/miairx/web/static/app/ src/miairx/web/static/app/
 RUN pip install --no-cache-dir .
@@ -28,7 +28,7 @@ RUN pip install --no-cache-dir .
 RUN mkdir -p /app/conf
 VOLUME ["/app/conf"]
 
-EXPOSE 8200/tcp 8300/tcp 1900/udp 5353/udp 7000-7099/tcp
+EXPOSE 8200/tcp 8300/tcp 1900/udp 5353/udp 7000-7099/tcp 7000-7099/udp 7100-7199/tcp
 
 ENV PYTHONUNBUFFERED=1
 

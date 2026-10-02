@@ -4,7 +4,6 @@ import asyncio
 import logging
 import queue
 import struct
-import subprocess
 import threading
 import time
 from typing import Optional
@@ -40,6 +39,7 @@ class AudioStreamServer:
         self._active = False
         self._abort = False
         self._session_id = int(time.time())
+        self._consumer_lock = threading.Lock()
 
         self._setup_routes()
 
@@ -83,14 +83,19 @@ class AudioStreamServer:
         """Start accepting audio data."""
         self._active = True
         self._abort = False
-        self._session_id = int(time.time())
-        # Clear queue
+        self._session_id = time.monotonic_ns()
+        # A reader from the previous URL must never consume the new session's PCM.
+        self._audio_queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
+        self._consumer_lock = threading.Lock()
+        log.info(f"Audio stream: started (format: {self._audio_format})")
+
+    def clear_audio(self):
+        """Discard buffered PCM on FLUSH without changing the live stream URL."""
         while True:
             try:
                 self._audio_queue.get_nowait()
             except queue.Empty:
                 break
-        log.info(f"Audio stream: started (format: {self._audio_format})")
 
     def stop_streaming(self):
         """Stop accepting audio data."""
@@ -127,6 +132,13 @@ class AudioStreamServer:
 
     async def _handle_stream_wav(self, request: web.Request) -> web.StreamResponse:
         """Handle WAV stream request."""
+        if not self._active or request.query.get("sid") != str(self._session_id):
+            raise web.HTTPNotFound(text="AirPlay session is no longer active")
+        consumer_lock = self._consumer_lock
+        audio_queue = self._audio_queue
+        if not consumer_lock.acquire(blocking=False):
+            raise web.HTTPConflict(text="AirPlay stream already has a consumer")
+        session_id = self._session_id
         log.info("WAV stream client connected")
 
         headers = {
@@ -136,31 +148,23 @@ class AudioStreamServer:
         }
 
         response = web.StreamResponse(status=200, headers=headers)
-        await response.prepare(request)
-
-        # Write WAV header
-        wav_header = self._build_wav_header(0)  # Unknown length
-        await response.write(wav_header)
-
-        # Stream audio data
-        silence_count = 0
-        while self._active and not self._abort:
-            try:
-                data = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: self._audio_queue.get(timeout=1.0)
-                )
-                if data is None:
+        try:
+            await response.prepare(request)
+            if request.method == "HEAD":
+                return response
+            await response.write(self._build_wav_header(0))
+            while self._active and not self._abort and session_id == self._session_id:
+                try:
+                    data = await asyncio.to_thread(audio_queue.get, True, 0.2)
+                except queue.Empty:
+                    continue
+                if data is None or session_id != self._session_id:
                     break
                 await response.write(data)
-                silence_count = 0
-            except queue.Empty:
-                # Send silence to keep connection alive
-                silence_count += 1
-                if silence_count >= 3:
-                    silence = b'\x00' * (self._sample_rate * self._channels * self._sample_width // 10)
-                    await response.write(silence)
-                    silence_count = 0
-
+        except (ConnectionError, OSError):
+            log.info("AirPlay HTTP stream disconnected")
+        finally:
+            consumer_lock.release()
         return response
 
     async def _handle_stream_mp3(self, request: web.Request) -> web.StreamResponse:
@@ -238,7 +242,7 @@ class AudioStreamServer:
     def _build_wav_header(self, data_size: int) -> bytes:
         """Build WAV file header."""
         if data_size == 0:
-            data_size = 0xFFFFFFFF  # Unknown length
+            data_size = 0x7FFFFF00  # Large bounded RIFF sizes for a live stream.
 
         byte_rate = self._sample_rate * self._channels * self._sample_width
         block_align = self._channels * self._sample_width

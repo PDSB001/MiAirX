@@ -4,6 +4,40 @@
 
 ## [Unreleased]
 
+暂无。
+
+## [1.7.0] - 2026-10-02
+
+### Web 状态展示
+
+- Dashboard 新增 AirPlay 能力、实验性限制及每台音箱的实际会话协议、端口与包计数；空闲状态不保留上一会话数据。
+- Settings 修正 TCP/UDP 端口说明，补充实验性事件端口与 Docker 宿主机防火墙提示。
+- 健康接口复用安全的只读运行状态，不返回会话密钥或配对凭据；增加前后端回归测试。
+
+### AirPlay 经典 RAOP 接收链路
+
+- 新增主动 NTP timing 探测、关联回复校验、低延迟样本筛选和过期判断；解析同步报文，使用有界发送端速率估计修正 RTP 接收端 pacing。
+- 缺包最多重试三次，发送失败不终止音频；修复长网络中断后永远超出接收窗口、窗口满时无法接收缺失头包的问题。
+- FLUSH 按序号与 RTP 时间戳隔离旧音频；节奏异常重建本地锚点，不积累无界延迟。
+- 增加一小时虚拟时间播放、回绕、时钟异常、真实 timing UDP、连续切歌及正常/异常断线重连测试；不等同于实机长时间播放或精确输出同步。
+
+- 新增独立 HAP transient M1–M4、SRP 证明验证、HKDF 和加密控制分帧；严格校验标签、计数器、加密切换和粘包，增加有界限速。
+- 新增 AP2 单音箱 realtime/type 96 实验链路：binary plist、加密事件通道、AEAD PCM/ALAC → HTTP WAV；复用原播放链路。
+- 持久配对、buffered/type 103、PTP、AAC、冗余 RTP 和多房间未实现，不广播完整 AP2 能力。
+- AP2 实验事件端口为 RTSP+100（默认 TCP 7100–7199），经典 RAOP 端口不变；新增独立 SRP/Node 和真实 TCP/UDP/HTTP 测试。
+
+- 独立实现有界 RTSP 分帧、完整二进制请求体、CSeq 和 Apple-Challenge 响应。
+- 独立实现无 PIN legacy 配对验证，拒绝篡改/重放/过期交换；不等同于 HAP 或 FairPlay，暂不改变配对能力广播。
+- HTTP/1.1 握手返回 HTTP/1.1 响应；未支持端点日志记录路径、类型和长度，不记录敏感请求体。
+- 接通真实 UDP RTP/RTCP、RSA-OAEP/AES 解密、PyAV ALAC/PCM 解码与 HTTP WAV 输出。
+- 增加有限乱序缓冲、重传请求、时钟请求响应、FLUSH 和会话断开清理。
+- 修复 WAV 长度溢出、过期流 URL 和上一会话 HTTP 客户端抢读新会话音频。
+- 引入固定提交的 FairPlay v3 Python 解密组件，接通两轮 `/fp-setup` 和 `fpaeskey`，严格校验报文、隔离连接状态、清除密钥调试输出。
+- 收紧 mDNS 为已实现的经典 RAOP 能力，新增 FairPlay v3 加密声明；HAP transient/AP2 实时链路仍属实验性，不启用完整 AP2 广播，不能宣称已修复所有 iOS 连接。
+- 附带第三方来源与 GPLv2 许可全文；完整构建不是纯 MIT 分发，源流许可与报文常量的权利疑点尚未解决，详见第三方声明。保留原项目 MIT LICENSE。
+- AirPlay 除 TCP 外需要放行相同端口段的 UDP；默认 TCP/UDP 7000–7099。
+- 添加独立模拟发送端测试，包括加密 ALAC/PCM → UDP → HTTP 音频逐字节验证及重复播放。
+
 ## [1.6.2] - 2026-08-21
 
 ### 首次使用与状态

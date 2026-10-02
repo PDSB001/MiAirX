@@ -243,7 +243,7 @@ class Application:
         if speakers:
             airplay_start, _ = self.config.get_airplay_ports(0)
             _, airplay_end = self.config.get_airplay_ports(len(speakers) - 1)
-            print(f"   AirPlay TCP: {airplay_start}-{airplay_end}")
+            print(f"   AirPlay TCP/UDP: {airplay_start}-{airplay_end}")
         
         print("\n" + "=" * 60)
         print("按 Ctrl+C 停止服务")

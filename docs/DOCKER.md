@@ -8,7 +8,7 @@ MiAirX 不是普通的纯 HTTP 服务：
 
 - DLNA 使用 UDP 1900 SSDP 组播发现设备。
 - AirPlay 使用 UDP 5353 mDNS 广播服务。
-- AirPlay 为每台音箱分配两个固定、连续的 TCP 端口，默认从 7000 开始。
+- AirPlay 为每台音箱分配两个固定、连续的 TCP/UDP 端口，默认从 7000 开始。
 - 音箱还需要反向访问 MiAirX 提供的媒体 URL。
 
 Docker 网桥和端口映射不能完整替代这些行为，因此必须使用：
@@ -56,7 +56,7 @@ http://Linux宿主机IP:8300
 `docker pull` 只下载镜像，不会启动容器或修改宿主机防火墙：
 
 ```bash
-docker pull jxydk/miairx:1.6.2
+docker pull jxydk/miairx:1.7.0
 ```
 
 然后创建配置目录并启动：
@@ -73,7 +73,7 @@ docker run -d \
   -e MIAIR_HOSTNAME='192.168.1.10' \
   -e MIAIR_AIRPLAY_PORT_START='7000' \
   -v "$(pwd)/conf:/app/conf" \
-  jxydk/miairx:1.6.2
+  jxydk/miairx:1.7.0
 ```
 
 ## 镜像中的前端
@@ -89,7 +89,9 @@ Dockerfile 使用多阶段构建：
 
 ## AirPlay 固定端口段
 
-默认从 TCP 7000 开始，每台启用音箱按 DID 配置顺序占用两个端口：
+v1.7.0 的 AP2 realtime 实验模式另用 TCP `RTSP + 100` 作为加密事件通道（默认 7100–7199）。Docker 仍用 host 网络，宿主机需另放行这些 LAN 入站端口；经典 RAOP 不受影响。实验范围与限制见 [AirPlay 说明](AIRPLAY.md)。
+
+默认从 TCP/UDP 7000 开始，每台启用音箱按 DID 配置顺序占用两个端口：
 
 | 音箱序号 | RTSP | 音频 HTTP |
 |---:|---:|---:|
@@ -97,7 +99,7 @@ Dockerfile 使用多阶段构建：
 | 2 | 7002 | 7003 |
 | 3 | 7004 | 7005 |
 
-镜像声明了 TCP 7000–7099，可覆盖 50 台音箱。使用 `network_mode: host` 时 `EXPOSE` 只是镜像元数据，真正是否可访问由宿主机防火墙决定。
+镜像声明了 TCP/UDP 7000–7099，可覆盖 50 台音箱。使用 `network_mode: host` 时 `EXPOSE` 只是镜像元数据，真正是否可访问由宿主机防火墙决定。
 
 如果默认端口被占用，可在 `.env` 中整体平移：
 
@@ -119,7 +121,7 @@ MIAIR_AIRPLAY_PORT_START=17000
 | DLNA 与媒体代理 | TCP 8200 |
 | Web 管理台 | TCP 8300 |
 | AirPlay mDNS | UDP 5353 |
-| AirPlay 固定端口段 | TCP 7000–7099 |
+| AirPlay 固定端口段 | TCP/UDP 7000–7099 |
 
 SSDP 还涉及 `239.255.255.250:1900` 组播查询、单播响应和 NOTIFY 广播；普通 `-p 1900:1900/udp` 无法替代 host 网络。可直接复制的 UFW、firewalld、Windows、NAS 规则和 `tcpdump` 诊断命令见 [防火墙与局域网发现](FIREWALL.md)。
 
@@ -144,7 +146,7 @@ docker compose up -d
 docker image prune
 ```
 
-`master` 标签跟随主分支，可能包含尚未发布的更改。正式版本会生成完整版本和次版本标签，例如 `1.6.2` 和 `1.6`；稳定部署建议固定完整版本标签。
+`master` 标签跟随主分支，可能包含尚未发布的更改。正式版本会生成完整版本和次版本标签，例如 `1.7.0` 和 `1.7`；稳定部署建议固定完整版本标签。
 
 ## 健康检查
 
@@ -171,7 +173,7 @@ docker inspect --format '{{json .State.Health}}' miairx
 1. 容器使用 `host` 网络。
 2. `MIAIR_HOSTNAME` 是宿主机 LAN IPv4，而不是容器地址或 `127.0.0.1`。
 3. 宿主机和手机在同一子网，没有 AP 隔离。
-4. 防火墙允许 UDP 1900、UDP 5353、TCP 8200/8300 和配置的 AirPlay TCP 端口段。
+4. 防火墙允许 UDP 1900、UDP 5353、TCP 8200/8300 和配置的 AirPlay TCP/UDP 端口段。
 5. 路由器没有禁用组播或 IGMP。
 
 ### 日志出现 IPv6 `Network is unreachable`

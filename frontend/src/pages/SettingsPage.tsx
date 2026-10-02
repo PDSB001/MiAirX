@@ -223,8 +223,9 @@ export function SettingsPage({ onRunSetup, openQrRequested = false, onQrOpened }
               <label className="field span-wide"><span>局域网地址</span><input value={draft.hostname} onChange={(event) => update("hostname", event.target.value)} placeholder="留空自动探测" /><small>留空则每次启动自动探测本机局域网 IP；也可手动填写其他设备可访问的宿主机 IPv4 地址。</small></label>
               <label className="field"><span>DLNA 端口</span><input type="number" min={1} max={65535} value={draft.dlna_port} onChange={(event) => update("dlna_port", Number(event.target.value))} /></label>
               <label className="field"><span>管理端口</span><input type="number" min={1} max={65535} value={draft.web_port} onChange={(event) => update("web_port", Number(event.target.value))} /></label>
-              <label className="field"><span>AirPlay 起始端口</span><input type="number" min={1} max={65534} value={draft.airplay_port_start} onChange={(event) => update("airplay_port_start", Number(event.target.value))} /><small>每台音箱依次占用两个 TCP 端口。</small></label>
+              <label className="field"><span>AirPlay 起始端口</span><input type="number" min={1} max={65534} value={draft.airplay_port_start} onChange={(event) => update("airplay_port_start", Number(event.target.value))} /><small>每台音箱依次分配两个端口，均需放行 TCP 和 UDP。实验性 AirPlay 2 会话还需要 RTSP 端口 + 100 的 TCP 事件端口。</small></label>
             </div>
+            <p className="airplay-network-note">默认第一台使用 7000 / 7001（TCP + UDP），事件端口 7100（TCP）；第二台为 7002 / 7003 和 7102。Docker 推荐 host 网络，仍需在宿主机放行这些端口及发现用的 UDP 5353 / 1900。端口不能与其他服务重叠；AirPlay 2 尚未启用完整服务广播，不保证 iOS 兼容。</p>
           </section>
           <VersionPanel />
           </div>

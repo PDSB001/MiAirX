@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+">
   <img src="https://img.shields.io/github/v/release/PDSB001/MiAirX?style=flat-square" alt="GitHub release">
   <img src="https://img.shields.io/badge/Docker-Linux%20host%20network-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker Linux">
-  <img src="https://img.shields.io/badge/License-MIT-2f855a?style=flat-square" alt="MIT license">
+  <img src="https://img.shields.io/badge/License-see_notices-2f855a?style=flat-square" alt="See third-party license notices">
 </p>
 
 <p align="center">
@@ -54,6 +54,8 @@
 - 支持 Windows、macOS、Linux；Docker 推荐 Linux 主机网络
 
 > AirPlay 的实际兼容性会受发送端版本、网络和音频格式影响；DLNA 是目前更稳定的投放路径。
+
+v1.7.0 接通经典 RAOP 的 RSA/FairPlay v3、PCM/ALAC 和 HTTP WAV，并新增 HAP 临时配对、AP2 单音箱实时音频实验链路、主动 NTP 测量、接收端 pacing 和有界重传恢复。持久配对、AP2 缓冲播放和 PTP 尚未实现，暂不广播完整 AP2 能力。本机测试不能代替 iPhone 真机验证，详见 [AirPlay 说明](docs/AIRPLAY.md)。完整构建含上游声明 GPLv2 的解密组件，不是纯 MIT 分发；源流许可疑点尚未解决，参见 [第三方声明](THIRD_PARTY_NOTICES.md) 与 [完整构建分发说明](DISTRIBUTION_LICENSE.md)。
 
 ## 快速开始
 
@@ -142,7 +144,7 @@ docker run -d \
   -e MI_USER='你的小米账号' \
   -e MI_PASS='你的小米密码' \
   -v "$(pwd)/conf:/app/conf" \
-  jxydk/miairx:1.6.2
+  jxydk/miairx:1.7.0
 ```
 
 然后访问 `http://Linux主机局域网IP:8300`。
@@ -170,7 +172,7 @@ Windows/macOS 的 Docker Desktop 运行在虚拟机网络中，`network_mode: ho
 | `MIAIR_DLNA_PORT` | `dlna_port` | DLNA HTTP 端口，默认 8200 |
 | `MIAIR_WEB_PORT` | `web_port` | 管理台端口，默认 8300 |
 | `MIAIR_WEB_PASSWORD` | `web_password` | 可选的管理台访问密码 |
-| `MIAIR_AIRPLAY_PORT_START` | `airplay_port_start` | AirPlay TCP 起始端口，默认 7000 |
+| `MIAIR_AIRPLAY_PORT_START` | `airplay_port_start` | AirPlay TCP/UDP 起始端口，默认 7000 |
 | `MIAIR_VERBOSE` | `verbose` | `true/1/yes` 开启详细日志 |
 
 全部字段和安全说明见 [配置参考](docs/CONFIGURATION.md)。
@@ -183,11 +185,11 @@ Windows/macOS 的 Docker Desktop 运行在虚拟机网络中，`network_mode: ho
 | DLNA HTTP / 媒体代理 | TCP 8200 | 设备描述、控制和媒体传输 |
 | Web 管理台 | TCP 8300 | 管理页面和 JSON API |
 | AirPlay mDNS | UDP 5353 | AirPlay 服务发现 |
-| AirPlay RTSP/音频 | TCP 7000 起 | 每台启用音箱固定占用两个连续端口 |
+| AirPlay RTSP/HTTP 与 RTP/RTCP | TCP 和 UDP 7000 起 | 每台启用音箱复用两个连续端口号；控制与 timing 共用 UDP 端口 |
 
-默认情况下，第一台音箱使用 TCP 7000/7001，第二台使用 7002/7003。Docker/NAS 可以统一放行 TCP 7000–7099，覆盖最多 50 台音箱；修改起始端口时应同步平移防火墙规则。
+默认情况下，第一台音箱使用 TCP/UDP 7000/7001，第二台使用 7002/7003。Docker/NAS 可以统一放行 TCP 和 UDP 7000–7099，覆盖最多 50 台音箱；修改起始端口时应同步平移防火墙规则。
 
-只应对可信局域网放行：TCP 8200、TCP 8300、UDP 1900、UDP 5353 和 AirPlay TCP 端口段。SSDP 的组播方向、`docker pull` 手动部署、UFW、firewalld、Windows 和 NAS 规则见 [防火墙与局域网发现](docs/FIREWALL.md)。
+只应对可信局域网放行：TCP 8200、TCP 8300、UDP 1900、UDP 5353 和 AirPlay TCP/UDP 端口段。SSDP 的组播方向、`docker pull` 手动部署、UFW、firewalld、Windows 和 NAS 规则见 [防火墙与局域网发现](docs/FIREWALL.md)。
 
 服务健康状态可通过 `GET http://主机IP:8300/health` 获取。该接口只提供 MiAirX、Xiaomi、DLNA、AirPlay、FFmpeg 和音箱在线状态，不是复杂监控系统。
 
@@ -259,4 +261,4 @@ pnpm test:e2e
 
 ## 许可证
 
-[MIT](LICENSE) © 2025 KiriChen-Wind · 2026 MiAirX Contributors
+MiAirX 原创部分保留 [MIT](LICENSE) © 2025 KiriChen-Wind · 2026 MiAirX Contributors。包含 FairPlay 的完整构建按上游声明的 GPLv2 条款分发，附带对应源码、署名及许可证全文；不能把完整包或镜像称为 MIT-only。GPLv2/GPLv3 来源链与响应数据权利尚待确认，这次发布不代表许可审查已完成。详见 [第三方声明](THIRD_PARTY_NOTICES.md) 与 [分发说明](DISTRIBUTION_LICENSE.md)。

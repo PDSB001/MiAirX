@@ -59,6 +59,10 @@ def build_health_snapshot(app) -> dict[str, object]:
             "status": state.get("status", "unknown"),
             "current_source": _current_source(app, speaker.did),
         })
+        service = getattr(app, "_airplay_services", {}).get(speaker.did)
+        server = getattr(service, "airplay_server", None)
+        if server and hasattr(server, "runtime_status"):
+            speakers[-1]["airplay"] = server.runtime_status()
 
     auth = getattr(app, "auth", None)
     xiaomi_status = auth.login_status() if auth else "unknown"
@@ -93,7 +97,20 @@ def build_health_snapshot(app) -> dict[str, object]:
         "miairx": {"running": bool(getattr(app, "_is_running", False))},
         "xiaomi": {"status": xiaomi_status},
         "dlna": {"running": dlna_running},
-        "airplay": {"running": airplay_running},
+        "airplay": {
+            "running": airplay_running,
+            "capabilities": {
+                "raop": True,
+                "fairplay_v3": True,
+                "hap_transient": True,
+                "ap2_realtime": "experimental",
+                "persistent_pairing": False,
+                "buffered_audio": False,
+                "ptp": False,
+                "ap2_discovery": False,
+                "ios_verified": False,
+            },
+        },
         "ffmpeg": ffmpeg,
         "network": {
             "hostname": (

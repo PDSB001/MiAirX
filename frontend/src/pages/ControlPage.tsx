@@ -5,6 +5,7 @@ import { api } from "../api/client";
 import { configQuery, healthQuery, positionsQuery, speakersQuery, statusQuery } from "../api/queries";
 import type { HealthSpeaker, PlaybackPosition, Speaker } from "../api/types";
 import { Modal } from "../components/Modal";
+import { AirplayStatus } from "../components/AirplayStatus";
 import { EmptyState, ErrorState, LoadingState, PageHeader } from "../components/Ui";
 import { useToast } from "../components/Toast";
 
@@ -167,6 +168,8 @@ export function ControlPage({ onRelogin }: { onRelogin?: () => void }) {
           <SpeakerCard key={speaker.did} speaker={speaker} health={healthByDid.get(speaker.did)} position={positions.data?.positions[speaker.did]} defaultVolume={config.data?.default_volume ?? 30} openPlay={() => setTarget(speaker)} />
         ))}
       </section>
+
+      {health.data && <AirplayStatus health={health.data} />}
 
       <Modal open={Boolean(target)} title={`投送到 ${target?.name || "音箱"}`} description="输入可公开访问的音频地址，MiAirX 会将其交给音箱播放。" onClose={() => setTarget(null)}>
         <form onSubmit={(event) => { event.preventDefault(); if (url.trim()) play.mutate(); }}>

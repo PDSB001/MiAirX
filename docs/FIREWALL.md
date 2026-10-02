@@ -18,7 +18,7 @@ MiAirX 只应对可信局域网开放，不要在路由器上配置公网端口�
 | DLNA 描述、SOAP 控制和媒体代理 | 局域网进入宿主机 | TCP 8200 | 使用 DLNA 时必须 |
 | Web 管理台和 JSON API | 局域网进入宿主机 | TCP 8300 | 使用管理台时必须 |
 | AirPlay mDNS 发现 | 局域网双向组播 | UDP 5353 | 使用 AirPlay 时必须 |
-| AirPlay RTSP 与音频 HTTP | 局域网进入宿主机 | TCP 7000 起 | 使用 AirPlay 时必须 |
+| AirPlay RTSP/HTTP 与 RTP/RTCP | 局域网进入宿主机 | TCP/UDP 7000 起 | 使用 AirPlay 时必须 |
 
 默认 AirPlay 端口按启用音箱的顺序固定分配：
 
@@ -34,9 +34,13 @@ MiAirX 只应对可信局域网开放，不要在路由器上配置公网端口�
 airplay_port_start + 启用音箱数量 × 2 - 1
 ```
 
-例如 3 台音箱从 7000 开始，只需 TCP 7000–7005。为了以后增加音箱，也可以一次放行 TCP 7000–7099，这能覆盖 50 台音箱。
+例如 3 台音箱从 7000 开始，只需 TCP/UDP 7000–7005。为了以后增加音箱，也可以一次放行 TCP/UDP 7000–7099，这能覆盖 50 台音箱。
 
 ## 为什么 SSDP 不只是“开放 1900”
+
+v1.7.0 AP2 realtime 实验链路还需要事件通道 TCP `RTSP 端口 + 100`，例如第一台 7100、第二台 7102。默认 50 台可放行 TCP 7100–7199；自定义 AirPlay 起点 17000 对应事件起点 17100。只对可信局域网开放，并避开已有服务端口。此链路不广播完整 AP2 支持，经典 RAOP 不需要这些额外端口。
+
+如直接测试 AP2，可按宿主机选择：`ufw allow from 192.168.1.0/24 to any port 7100:7199 proto tcp`；或 firewalld `--add-port=7100-7199/tcp`（使用可信 LAN zone）；或 Windows `New-NetFirewallRule -DisplayName 'MiAirX AP2 events' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 7100-7199 -Profile Private -RemoteAddress LocalSubnet`。NAS 在可信 LAN 入站规则中增加同一 TCP 范围。`EXPOSE` 不会替代这些规则。
 
 SSDP 使用 IPv4 组播地址 `239.255.255.250`：
 
@@ -81,7 +85,7 @@ MIAIR_AIRPLAY_PORT_START=7000
 拉取并启动：
 
 ```bash
-docker pull jxydk/miairx:1.6.2
+docker pull jxydk/miairx:1.7.0
 mkdir -p ./conf
 
 docker run -d \
@@ -90,7 +94,7 @@ docker run -d \
   --restart unless-stopped \
   --env-file .env \
   -v "$(pwd)/conf:/app/conf" \
-  jxydk/miairx:1.6.2
+  jxydk/miairx:1.7.0
 ```
 
 使用 `--network host` 时不要添加 `-p`。端口由 MiAirX 直接监听在宿主机上。
@@ -98,7 +102,7 @@ docker run -d \
 更新已有容器：
 
 ```bash
-docker pull jxydk/miairx:1.6.2
+docker pull jxydk/miairx:1.7.0
 docker rm -f miairx
 
 docker run -d \
@@ -107,7 +111,7 @@ docker run -d \
   --restart unless-stopped \
   --env-file .env \
   -v "$(pwd)/conf:/app/conf" \
-  jxydk/miairx:1.6.2
+  jxydk/miairx:1.7.0
 ```
 
 只要 `/app/conf` 已挂载到宿主机，重建容器不会删除配置。如果旧容器没有挂载配置目录，删除前先备份：
@@ -131,11 +135,13 @@ sudo ufw allow from 192.168.1.0/24 to any port 8300 proto tcp comment 'MiAirX We
 sudo ufw allow from 192.168.1.0/24 to any port 5353 proto udp comment 'MiAirX mDNS'
 sudo ufw allow from 192.168.1.0/24 to any port 7000:7099 proto tcp comment 'MiAirX AirPlay'
 
+sudo ufw allow from 192.168.1.0/24 to any port 7000:7099 proto udp comment 'MiAirX RTP/RTCP'
+
 sudo ufw reload
 sudo ufw status numbered
 ```
 
-如果只使用 DLNA，可以省略 UDP 5353 和 TCP 7000–7099。如果不需要从其他设备访问管理台，也可以不开放 TCP 8300。
+如果只使用 DLNA，可以省略 UDP 5353 和 TCP/UDP 7000–7099。如果不需要从其他设备访问管理台，也可以不开放 TCP 8300。
 
 ### 默认拒绝出站
 
@@ -152,6 +158,7 @@ sudo ufw allow out to 239.255.255.250 port 1900 proto udp comment 'MiAirX SSDP m
 sudo ufw allow out to 224.0.0.251 port 5353 proto udp comment 'MiAirX mDNS multicast'
 sudo ufw allow out from any port 1900 to 192.168.1.0/24 proto udp comment 'MiAirX SSDP replies'
 sudo ufw allow out from any port 5353 to 192.168.1.0/24 proto udp comment 'MiAirX mDNS replies'
+sudo ufw allow out from any port 7000:7099 to 192.168.1.0/24 proto udp comment 'MiAirX RTCP timing and retransmission'
 ```
 
 还必须按宿主机安全策略允许访问小米云和媒体源。MiAirX 需要发起 HTTPS 请求，过度严格的出站规则会造成登录失败或大文件无声。
@@ -172,6 +179,7 @@ sudo firewall-cmd --permanent --zone=home --add-port=8200/tcp
 sudo firewall-cmd --permanent --zone=home --add-port=8300/tcp
 sudo firewall-cmd --permanent --zone=home --add-port=5353/udp
 sudo firewall-cmd --permanent --zone=home --add-port=7000-7099/tcp
+sudo firewall-cmd --permanent --zone=home --add-port=7000-7099/udp
 sudo firewall-cmd --reload
 sudo firewall-cmd --zone=home --list-ports
 ```
@@ -190,6 +198,7 @@ New-NetFirewallRule -DisplayName 'MiAirX DLNA' -Direction Inbound -Action Allow 
 New-NetFirewallRule -DisplayName 'MiAirX Web' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8300 -Profile Private -RemoteAddress LocalSubnet
 New-NetFirewallRule -DisplayName 'MiAirX mDNS' -Direction Inbound -Action Allow -Protocol UDP -LocalPort 5353 -Profile Private -RemoteAddress LocalSubnet
 New-NetFirewallRule -DisplayName 'MiAirX AirPlay' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 7000-7099 -Profile Private -RemoteAddress LocalSubnet
+New-NetFirewallRule -DisplayName 'MiAirX AirPlay RTP' -Direction Inbound -Action Allow -Protocol UDP -LocalPort 7000-7099 -Profile Private -RemoteAddress LocalSubnet
 ```
 
 这些规则只对“专用”网络配置文件和本地子网生效。确认当前网络不是“公用”：
@@ -216,6 +225,7 @@ TCP 8200
 TCP 8300
 UDP 5353
 TCP 7000-7099
+UDP 7000-7099
 ```
 
 规则必须加在 NAS 宿主机，而不是容器内部。若 NAS 提供“允许 Docker 应用”选项，也仍需确认组播 UDP 1900/5353 没有被系统级防火墙拦截。
@@ -235,7 +245,7 @@ MIAIR_AIRPLAY_PORT_START=17000
 ```text
 TCP 18200
 TCP 18300
-TCP 17000 起，每台音箱两个端口
+TCP/UDP 17000 起，每台音箱两个端口
 UDP 1900 和 UDP 5353 保持不变
 ```
 
@@ -305,3 +315,7 @@ TCP 8300 正常只证明 Web 服务可用。SSDP 依赖 UDP 1900 组播，两者
 ### DLNA 能发现但播放无声
 
 发现成功只证明 UDP 1900 正常。还要保证音箱能访问 `MIAIR_HOSTNAME:MIAIR_DLNA_PORT`，默认即宿主机 TCP 8200。大文件播放还要求容器能访问上游媒体源。
+
+### AirPlay 能发现但无法连接
+
+发现依赖 UDP 5353，媒体需要另行放行 TCP/UDP AirPlay 端口段。v1.7.0 支持经典 RSA/FairPlay v3 RAOP 和 HAP 临时配对，AP2 实时音频仍属实验性；持久配对、buffered/PTP 等协商会被明确拒绝。`/fp-setup` 或 `/pair-*` 的错误也可能来自不支持的版本、状态或无效报文，不能一概判为端口问题。参见 [AirPlay 说明](AIRPLAY.md)；开放更多端口不能补齐尚未实现的协议功能。

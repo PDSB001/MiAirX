@@ -2,7 +2,7 @@
 
 import base64
 import logging
-from typing import Optional
+import socket
 
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.PublicKey import RSA
@@ -53,11 +53,11 @@ class AirplayCrypto:
         try:
             airport_key = RSA.importKey(AIRPORT_PRIVATE_KEY)
             cipher = PKCS1_OAEP.new(airport_key)
-            encrypted_key = base64.standard_b64decode(encrypted_key_b64 + "==")
+            encrypted_key = AirplayCrypto.decode_base64(encrypted_key_b64)
             aes_key = cipher.decrypt(encrypted_key)
             
             if len(aes_key) != 16:
-                log.warning(f"Unexpected AES key length: {len(aes_key)}")
+                raise ValueError("RSA session key must be 16 bytes")
             
             return aes_key
         except Exception as e:
@@ -78,8 +78,9 @@ class AirplayCrypto:
         """
         try:
             cipher = AES.new(key, AES.MODE_CBC, iv)
-            decrypted = cipher.decrypt(data)
-            return decrypted
+            size = len(data) - len(data) % AES.block_size
+            # RAOP encrypts complete blocks and leaves the final short tail clear.
+            return cipher.decrypt(data[:size]) + data[size:]
         except Exception as e:
             log.error(f"AES-CBC decryption failed: {e}")
             raise
@@ -95,8 +96,8 @@ class AirplayCrypto:
             Decoded bytes
         """
         # Add padding if needed
-        padded = data + "=="
-        return base64.standard_b64decode(padded)
+        padded = data.strip() + "=" * (-len(data.strip()) % 4)
+        return base64.b64decode(padded, validate=True)
 
     @staticmethod
     def encode_base64(data: bytes) -> str:
@@ -108,11 +109,25 @@ class AirplayCrypto:
         Returns:
             Base64-encoded string (without trailing ==)
         """
-        encoded = base64.standard_b64encode(data)
-        # Remove trailing ==
-        if encoded.endswith(b"=="):
-            encoded = encoded[:-2]
-        return encoded.decode("ascii")
+        return base64.b64encode(data).decode("ascii").rstrip("=")
+
+    @staticmethod
+    def apple_response(challenge: str, address: str, device_id: str) -> str:
+        """Sign the classic RAOP challenge using RSA PKCS#1 type-1 padding.
+
+        The signed payload is challenge + local IPv4 + six-byte device ID,
+        zero-padded to 32 bytes. It is not a hashed RSA signature.
+        """
+        nonce = AirplayCrypto.decode_base64(challenge)
+        if not 1 <= len(nonce) <= 16:
+            raise ValueError("Invalid Apple-Challenge length")
+        payload = (nonce + socket.inet_aton(address)
+                   + bytes.fromhex(device_id.replace(":", ""))).ljust(32, b"\0")
+        private_key = RSA.import_key(AIRPORT_PRIVATE_KEY)
+        size = private_key.size_in_bytes()
+        encoded = b"\0\1" + b"\xff" * (size - len(payload) - 3) + b"\0" + payload
+        signed = pow(int.from_bytes(encoded, "big"), private_key.d, private_key.n)
+        return AirplayCrypto.encode_base64(signed.to_bytes(size, "big"))
 
     @staticmethod
     def generate_device_id() -> str:

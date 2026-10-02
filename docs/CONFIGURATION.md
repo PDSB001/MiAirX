@@ -72,7 +72,7 @@ Cookie 字符串至少需要 `userId` 和 `passToken`：
 | `hostname` | 自动检测 | 必须是手机和音箱可访问的主机 IPv4 地址 |
 | `dlna_port` | `8200` | DLNA HTTP、SOAP 和媒体代理端口 |
 | `web_port` | `8300` | 管理台和 JSON API 端口 |
-| `airplay_port_start` | `7000` | AirPlay 固定 TCP 端口段起点；每台启用音箱依次占用两个端口 |
+| `airplay_port_start` | `7000` | AirPlay 固定 TCP/UDP 端口段起点；每台启用音箱依次占用两个端口 |
 | `conf_path` | `"conf"` | 配置及日志目录；通常通过 `--config` 设置 |
 | `verbose` | `false` | 开启详细日志；启动时读取 |
 | `auto_resume_on_interrupt` | `false` | DLNA 播放被外部状态打断时尝试恢复 |
@@ -95,7 +95,7 @@ Cookie 字符串至少需要 `userId` 和 `passToken`：
 | `MIAIR_DLNA_PORT` | integer | DLNA 端口 |
 | `MIAIR_WEB_PORT` | integer | Web 端口 |
 | `MIAIR_WEB_PASSWORD` | string | 管理台访问密码；未设置时不启用认证 |
-| `MIAIR_AIRPLAY_PORT_START` | integer | AirPlay TCP 起始端口 |
+| `MIAIR_AIRPLAY_PORT_START` | integer | AirPlay TCP/UDP 起始端口 |
 | `MIAIR_VERBOSE` | boolean | `true`、`1` 或 `yes` 表示开启 |
 
 Docker Compose 可以把敏感值放进未提交的 `.env` 文件，而不是直接写进 Compose 文件：
@@ -119,7 +119,7 @@ MIAIR_AIRPLAY_PORT_START=7000
 --hostname         对外广播的主机地址
 --dlna-port        DLNA 端口
 --web-port         管理台端口
---airplay-port-start  AirPlay TCP 起始端口
+--airplay-port-start  AirPlay TCP/UDP 起始端口
 --version          显示版本
 ```
 
@@ -152,6 +152,8 @@ miairx --help
 - 未识别的历史字段会被忽略，不会阻止应用启动。
 
 使用 Docker 时，环境变量优先于 `config.json`。例如 `.env` 中存在 `MIAIR_AIRPLAY_PORT_START=17000`，即使管理台保存为 7000，重启容器后仍会被环境变量覆盖。
+
+v1.7.0 AP2 realtime 实验模式的事件 TCP 端口是对应 RTSP 端口加 100；上述起点 17000 对应第一台事件端口 17100。应预留端口，避免与其他服务/音箱端口重叠。经典 RAOP 不使用额外事件端口，AP2 实验范围见 [AirPlay 说明](AIRPLAY.md)。
 
 端口与宿主机防火墙的对应关系见 [防火墙与局域网发现](FIREWALL.md)。
 
